@@ -13,7 +13,9 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier" : "com.medilensplus.firebase" ,
+      "googleServicesFile" : "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,6 +25,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+     [ "expo-build-properties", {
+      "ios" : {
+        "useFrameworks": "static"
+      }
+     }],
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
+    ]
   }
 }

@@ -12,6 +12,8 @@ import {
   Keyboard
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../../config/firebase";
 
 const SignInPage = () => {
   const [email, setEmail] = useState('');
@@ -20,9 +22,24 @@ const SignInPage = () => {
 
   const navigation = useNavigation();
 
-  const handleSignIn = () => {
-    // Navigate to the HomeScreenPage
-    navigation.navigate('HomeScreen');
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      alert('Please fill in both fields');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Use Firebase's signInWithEmailAndPassword to sign the user in
+      await signInWithEmailAndPassword(auth, email, password);
+      alert('Sign in successful!');
+      navigation.navigate('HomeScreen'); // Navigate to HomeScreen upon successful sign-in
+    } catch (error) {
+      alert("Sign-In Failed: " + error.message); // Display an error message if sign-in fails
+    }
+
+    setLoading(false);
   };
 
   const handleForgotPassword = () => {

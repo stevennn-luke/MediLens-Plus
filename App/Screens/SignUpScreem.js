@@ -10,6 +10,8 @@ import {
   Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../../config/firebase"; 
 
 const SignUpScreen = () => {
   const [email, setEmail] = useState('');
@@ -25,23 +27,29 @@ const SignUpScreen = () => {
       alert('Please fill in all fields');
       return;
     }
-    
+  
     if (password !== confirmPassword) {
       alert('Passwords do not match');
       return;
     }
-    
+  
     setLoading(true);
+  
     try {
-      await auth().createUserWithEmailAndPassword(email, password);
-      alert('Check your emails!');
-  } catch (e) {
-      alert("SignUp Failed: " + e.message);
-  }
-    console.log('Signing up with:', { email, password });
-    
-    // Navigate to next screen after successful signup
-    navigation.navigate('ProfileScreen');
+      await createUserWithEmailAndPassword(auth, email, password);
+      //alert('Check your emails!');
+      // Only navigate to ProfileScreen if sign-up was successful and email does not already exist
+      navigation.navigate('ProfileScreen');
+    } catch (error) {
+      // Check if the error is because of the email already being in use
+      if (error.code === 'auth/email-already-in-use') {
+        alert('The email address is already in use. Please use a different email.');
+      } else {
+        alert("SignUp Failed: " + error.message);
+      }
+    }
+  
+    setLoading(false);
   };
 
   const handleSignIn = () => {

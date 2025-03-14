@@ -159,10 +159,11 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   title: {
+    paddingTop: 60,
     fontSize: 32,
     fontWeight: 'bold',
     color: '#000',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   subtitle: {
     fontSize: 16,
@@ -206,12 +207,12 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     backgroundColor: '#111',
-    borderRadius: 100,
-    paddingVertical: 16,
+    borderRadius: 20,
+    paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 'auto',
-    marginBottom: 24,
+    marginBottom: 30,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,

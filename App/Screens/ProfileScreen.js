@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   SafeAreaView, 
   View, 
@@ -8,129 +8,175 @@ import {
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
+  Platform,
+  Modal,
 } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
+import { auth, db } from '../../config/firebase'; 
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const ProfileScreen = () => {
-
   const navigation = useNavigation();
+  const [userId, setUserId] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     dateOfBirth: '',
-    bloodType: ''
+    bloodType: '',
   });
 
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [date, setDate] = useState(new Date());
 
-  const handleChange = (field, value) => {
-    setFormData({
-      ...formData,
-      [field]: value
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) {
+        setUserId(user.uid);
+        fetchUserData(user.uid);
+      } else {
+        setUserId(null);
+      }
     });
+
+    return () => unsubscribe();
+  }, []);
+
+  const fetchUserData = async (uid) => {
+    try {
+      console.log("🔄 Fetching user data from Firestore...");
+      const docRef = doc(db, "users", uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        console.log("✅ User data found:", docSnap.data());
+        setFormData(docSnap.data());
+      } else {
+        console.log("⚠️ No profile data found.");
+      }
+    } catch (error) {
+      console.error("❌ Error fetching profile data:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const handleChange = (key, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+  
+
+  const handleSave = async () => {
+    if (!userId) {
+      console.log("❌ No user signed in!");
+      return;
+    }
+
+    try {
+      console.log("🔄 Saving profile data to Firestore...");
+      await setDoc(doc(db, "users", userId), formData, { merge: true });
+      console.log("✅ Profile data saved successfully:", formData);
+      navigation.navigate('HomeScreen');
+    } catch (error) {
+      console.error("❌ Error saving profile data:", error);
+    }
+  };
   const handleDateChange = (event, selectedDate) => {
-    const currentDate = selectedDate || new Date();
-    setShowDatePicker(Platform.OS === 'ios');
-    
-    // Format the date as a string (e.g., "MM/DD/YYYY")
-    const formattedDate = currentDate.toLocaleDateString();
-    
+    // Keep the picker open and just update the date
+    const currentDate = selectedDate || date;
+    setDate(currentDate);
+  };
+
+  const confirmDate = () => {
+    setShowDatePicker(false);
+    const formattedDate = date.toLocaleDateString();
     handleChange('dateOfBirth', formattedDate);
   };
 
-  const showDatepicker = () => {
-    setShowDatePicker(true);
-  };
-
-  const handleSave = () => { 
-    navigation.navigate('HomeScreen');
-    console.log('Saving profile data:', formData);
+  const cancelDate = () => {
+    setShowDatePicker(false);
   };
 
   return (
-    /*
-    <KeyboardAvoidingView 
-    style={styles.container}
-    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-  >
-  */
     <SafeAreaView style={styles.container}>
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-        <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={24} color="black" />
           </TouchableOpacity>
         </View>
+
         <View style={styles.contentContainer}>
-        <Text style={styles.headerTitle}>Profile</Text>
+          <Text style={styles.headerTitle}>Set Up Profile</Text>
+          <Text style={styles.subtitle}>Input your personal details into MediLens+</Text>
 
-        <Text style={styles.subtitle}>
-          Input your personal details into MediLens+
-        </Text>
-
-        <View style={styles.formContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="First Name"
-            value={formData.firstName}
-            onChangeText={(text) => handleChange('firstName', text)}
-          />
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Last Name"
-            value={formData.lastName}
-            onChangeText={(text) => handleChange('lastName', text)}
-          />
-          
-          <TouchableOpacity onPress={showDatepicker} style={styles.datePickerButton}>
-            <Text style={[styles.datePickerText, !formData.dateOfBirth && styles.placeholderText]}>
-              {formData.dateOfBirth || "Date of Birth"}
-            </Text>
-          </TouchableOpacity>
-          
-          {showDatePicker && (
-            <DateTimePicker
-              testID="dateTimePicker"
-              value={formData.dateOfBirth ? new Date(formData.dateOfBirth) : new Date()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleDateChange}
+          <View style={styles.formContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="First Name"
+              value={formData.firstName}
+              onChangeText={(text) => handleChange('firstName', text)}
             />
-          )}
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Blood Type"
-            value={formData.bloodType}
-            onChangeText={(text) => handleChange('bloodType', text)}
-          />
-        </View>
+            
+            <TextInput
+              style={styles.input}
+              placeholder="Last Name"
+              value={formData.lastName}
+              onChangeText={(text) => handleChange('lastName', text)}
+            />
 
-        <TouchableOpacity 
-          style={styles.saveButton} 
-          onPress={handleSave}
-        >
-          <Text style={styles.saveButtonText}>SAVE</Text>
-        </TouchableOpacity>
-        
+            <TouchableOpacity 
+              onPress={() => setShowDatePicker(true)} 
+              style={styles.datePickerButton}
+            >
+              <Text style={[styles.datePickerText, !formData.dateOfBirth && styles.placeholderText]}>
+                {formData.dateOfBirth || "Date of Birth"}
+              </Text>
+            </TouchableOpacity>
+            
+            {/* iOS specific date picker implementation */}
+            {Platform.OS === 'ios' && showDatePicker && (
+              <View style={styles.iosPickerContainer}>
+                <View style={styles.iosPickerHeader}>
+                  <TouchableOpacity onPress={cancelDate}>
+                    <Text style={styles.iosPickerCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={confirmDate}>
+                    <Text style={styles.iosPickerConfirm}>Confirm</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  style={styles.iosPicker}
+                />
+              </View>
+            )}
+          
+
+            <TextInput
+              style={styles.input}
+              placeholder="Blood Type"
+              value={formData.bloodType}
+              onChangeText={(text) => handleChange('bloodType', text)}
+            />
+          </View>
+
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>SAVE</Text>
+          </TouchableOpacity>
         </View>
-        </ScrollView>
+      </ScrollView>
     </SafeAreaView>
-   // </KeyboardAvoidingView>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -188,9 +234,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     justifyContent: 'center',
   },
-  datePickerText: {
+ datePickerText: {
     fontSize: 16,
     color: '#333',
+  },
+  placeholderText: {
+    color: '#999',
   },
   saveButton: {
     backgroundColor: '#111',
@@ -199,10 +248,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  // iOS specific picker styles
+  iosPickerContainer: {
+    backgroundColor: '#f9f9f9',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  iosPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9e9e9',
+    backgroundColor: '#fff',
+  },
+  iosPickerCancel: {
+    color: '#777',
+    fontSize: 17,
+  },
+  iosPickerConfirm: {
+    color: '#007AFF',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  iosPicker: {
+    height: 216, // Standard iOS picker height
+    backgroundColor: '#fff',
   },
 });
 

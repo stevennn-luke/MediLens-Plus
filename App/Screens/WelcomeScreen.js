@@ -63,7 +63,7 @@ const WelcomeScreen = () => {
           </Animated.Text>
           <View style={styles.bottomTextContainer}>
             <Animated.Text style={[styles.subtitle, { opacity: subtitleOpacity }]}>
-              To help with keeping track of your medications
+              Managing medications should be effortless
             </Animated.Text>
           </View>
         </View>
@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Regular',
     fontSize: 14,
     textAlign: 'center',
+   
   },
 });
 

@@ -64,12 +64,12 @@ const ProfileScreen = () => {
   };
 
   const handleChange = (key, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
-  
+  setFormData((prev) => ({
+    ...prev,
+    [key]: value,
+  }));
+};
+
 
   const handleSave = async () => {
     if (!userId) {

@@ -6,9 +6,10 @@ import { StyleSheet,
   SafeAreaView,
  } from 'react-native';
 
-
+import WelcomeScreen from './App/Screens/WelcomeScreen';
 import WelcomeScreenMain from './App/Screens/WelcomeScreenMain';
 import SignInPage from './App/Screens/SignInScreen';
+import ForgotPasswordScreen from './App/Screens/ForgotPasswordScreen';
 import SignUpScreen from './App/Screens/SignUpScreem';
 import ProfileScreen from './App/Screens/ProfileScreen';
 import MedicalIDScreen from './App/Screens/Medical-Id-Screem';
@@ -26,8 +27,10 @@ export default function App() {
    
    <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="WelcomeScreen" component={WelcomeScreen} />
         <Stack.Screen name="Welcome" component={WelcomeScreenMain} />
         <Stack.Screen name="SignInPage" component={SignInPage} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} /> 
         <Stack.Screen name="SignUpScreen" component={SignUpScreen} />
         <Stack.Screen name="HomeScreen" component={HomeScreen} />
         <Stack.Screen name="ProfileScreen" component={ProfileScreen} /> 

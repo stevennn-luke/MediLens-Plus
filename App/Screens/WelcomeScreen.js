@@ -8,7 +8,7 @@ import {
   TouchableWithoutFeedback 
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import WelcomeScreenMain from './App/Screens/WelcomeScreenMain';
+//import WelcomeScreenMain from './App/Screens/WelcomeScreenMain';
 
 const WelcomeScreen = () => {
   const navigation = useNavigation();
@@ -17,7 +17,7 @@ const WelcomeScreen = () => {
   
   
   const navigateToHome = () => {
-    navigation.navigate('WelcomeScreenMain');
+    navigation.navigate('Welcome');
   };
 
   useEffect(() => {
@@ -47,7 +47,7 @@ const WelcomeScreen = () => {
               useNativeDriver: true,
             }),
           ]).start(() => {
-            navigation.navigate('WelcomeScreenMain');
+            navigation.navigate('Welcome');
           });
         }, 2000); 
       });
@@ -59,7 +59,7 @@ const WelcomeScreen = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.contentContainer}>
           <Animated.Text style={[styles.title, { opacity: titleOpacity }]}>
-            MediLens+=
+            MediLens+
           </Animated.Text>
           <View style={styles.bottomTextContainer}>
             <Animated.Text style={[styles.subtitle, { opacity: subtitleOpacity }]}>

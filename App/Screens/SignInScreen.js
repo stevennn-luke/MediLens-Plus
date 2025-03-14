@@ -31,19 +31,18 @@ const SignInPage = () => {
     setLoading(true);
 
     try {
-      // Use Firebase's signInWithEmailAndPassword to sign the user in
       await signInWithEmailAndPassword(auth, email, password);
-      alert('Sign in successful!');
-      navigation.navigate('HomeScreen'); // Navigate to HomeScreen upon successful sign-in
+      //alert('Sign in successful!');
+      navigation.navigate('HomeScreen'); // Navigate to HomeScreen 
     } catch (error) {
-      alert("Sign-In Failed: " + error.message); // Display an error message if sign-in fails
+      alert("Sign-In Failed: " + error.message); // error message if sign-in fails
     }
 
     setLoading(false);
   };
 
   const handleForgotPassword = () => {
-    navigation.navigate('ForgotPasswordPage');
+    navigation.navigate('ForgotPassword');
   };
 
   const handleSignUp = () => {

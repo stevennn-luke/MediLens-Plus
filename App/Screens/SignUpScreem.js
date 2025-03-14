@@ -12,6 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../config/firebase"; 
+import { Ionicons } from '@expo/vector-icons'; 
 
 const SignUpScreen = () => {
   const [email, setEmail] = useState('');
@@ -62,10 +63,10 @@ const SignUpScreen = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity 
-            style={styles.backButton}
+           style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>{'<'}</Text>
+            <Ionicons name="chevron-back" size={24} color="black" />
           </TouchableOpacity>
         </View>
         
@@ -111,7 +112,7 @@ const SignUpScreen = () => {
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>Have an account? </Text>
             <TouchableOpacity onPress={handleSignIn}>
-              <Text style={styles.loginLink}>Sign in</Text>
+              <Text style={styles.loginLink}>Sign In</Text>
             </TouchableOpacity>
           </View>
           
@@ -137,8 +138,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   header: {
-    paddingHorizontal: 15,
-    paddingTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
   backButton: {
     width: 40,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   SafeAreaView, 
   View, 
@@ -10,22 +10,43 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { getAuth } from 'firebase/auth';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+
 const MedicalIDScreen = () => {
-  const userMedicalData = {
+  const [userMedicalData, setUserMedicalData] = useState({
     firstName: '',
     lastName: '',
     dateOfBirth: '',
     bloodType: '',
     weight: '',
     height: ''
-  };
+  });
+
   const navigation = useNavigation();
+  const auth = getAuth();
+  const db = getFirestore();
+
+  useEffect(() => {
+    const fetchMedicalData = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          setUserMedicalData(userDocSnap.data());
+        }
+      }
+    };
+    
+    fetchMedicalData();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {/* back button */}
-      <View style={styles.header}>
+        <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => navigation.goBack()}
@@ -106,10 +127,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   title: {
     paddingVertical: 20,

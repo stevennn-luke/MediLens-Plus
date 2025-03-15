@@ -8,15 +8,88 @@ const MedTrack = ({ navigation }) => {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Function to determine time of day based on time string
+  const getTimeOfDay = (timeString) => {
+    // Default if no time is provided
+    if (!timeString) return 'Other';
+    
+    // Parse time string (assuming format like "9:00 AM" or "14:30")
+    let hours = 0;
+    let minutes = 0;
+    let isPM = false;
+    
+    // Handle different time formats
+    if (timeString.includes(':')) {
+      // Format like "9:00 AM" or "14:30"
+      const timeParts = timeString.split(':');
+      hours = parseInt(timeParts[0]);
+      
+      // Handle minutes and AM/PM if present
+      if (timeParts[1]) {
+        if (timeParts[1].includes('AM')) {
+          minutes = parseInt(timeParts[1].split(' ')[0]);
+          isPM = false;
+        } else if (timeParts[1].includes('PM')) {
+          minutes = parseInt(timeParts[1].split(' ')[0]);
+          isPM = true;
+          if (hours !== 12) hours += 12;
+        } else {
+          // 24-hour format
+          minutes = parseInt(timeParts[1]);
+        }
+      }
+    } else {
+      // Simple hour format
+      hours = parseInt(timeString);
+    }
+    
+    // Convert 12-hour format to 24-hour
+    if (isPM && hours !== 12) {
+      hours += 12;
+    }
+    if (!isPM && hours === 12) {
+      hours = 0;
+    }
+    
+    // Categorize based on time periods
+    // Morning: 6:00 AM - 11:59 AM
+    if (hours >= 6 && hours < 12) {
+      return 'Morning';
+    }
+    // Afternoon: 12:00 PM - 3:00 PM
+    else if (hours >= 12 && hours < 15) {
+      return 'Afternoon';
+    }
+    // Evening: 3:00 PM - 8:00 PM
+    else if (hours >= 15 && hours < 20) {
+      return 'Evening';
+    }
+    // Night: 8:00 PM - 5:59 AM
+    else {
+      return 'Night';
+    }
+  };
+
   // Fetch medications from Firestore
   useEffect(() => {
     const fetchMedications = async () => {
       try {
-        const medicationsCollection = collection(db, 'medications');
+        // Make sure we're getting medications for the current user
+        const userId = auth.currentUser ? auth.currentUser.uid : null;
+        if (!userId) {
+          console.error("No user logged in");
+          setLoading(false);
+          return;
+        }
+
+        // Reference the medications subcollection for this user
+        const medicationsCollection = collection(db, 'users', userId, 'medications');
         const medicationSnapshot = await getDocs(medicationsCollection);
         const medicationList = medicationSnapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
+          // Assign timeOfDay based on the time field
+          timeOfDay: getTimeOfDay(doc.data().time)
         }));
         setMedications(medicationList);
         setLoading(false);
@@ -37,10 +110,10 @@ const MedTrack = ({ navigation }) => {
     }
     groups[timeOfDay].push(med);
     return groups;
-  }, { Morning: [], Afternoon: [], Night: [], Other: [] });
+  }, { Morning: [], Afternoon: [], Evening: [], Night: [], Other: [] });
 
-  // Sort time of day sections
-  const timeOrder = ['Morning', 'Afternoon', 'Night', 'Other'];
+  // Sort time of day sections in chronological order
+  const timeOrder = ['Morning', 'Afternoon', 'Evening', 'Night', 'Other'];
   
   return (
     <SafeAreaView style={styles.container}>
@@ -56,8 +129,11 @@ const MedTrack = ({ navigation }) => {
           <Text style={styles.headerTitle}>MediLens+</Text>
         </View>
         
-        {/* No Medications View */}
-        {medications.length === 0 ? (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading your medications...</Text>
+          </View>
+        ) : medications.length === 0 ? (
           <>
             {/* Setup Section */}
             <View style={styles.section}>
@@ -72,7 +148,7 @@ const MedTrack = ({ navigation }) => {
               <TouchableOpacity 
                 style={styles.addButton}
                 onPress={() => {
-                  navigation.navigate('AddMedication');
+                  navigation.navigate('AddMed');
                 }}
               >
                 <Text style={styles.addButtonText}>Add</Text>
@@ -103,7 +179,7 @@ const MedTrack = ({ navigation }) => {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.actionButtonPrimary}
-                onPress={() => navigation.navigate('AddMedication')}
+                onPress={() => navigation.navigate('AddMed')}
               >
                 <Text style={styles.actionButtonPrimaryText}>Add</Text>
               </TouchableOpacity>
@@ -117,7 +193,11 @@ const MedTrack = ({ navigation }) => {
                     <Text style={styles.timeSectionTitle}>{timeOfDay}</Text>
                     
                     {groupedMedications[timeOfDay].map(med => (
-                      <View key={med.id} style={styles.medicationCard}>
+                      <TouchableOpacity 
+                        key={med.id} 
+                        style={styles.medicationCard}
+                        onPress={() => navigation.navigate('MedicationDetail', { medicationId: med.id })}
+                      >
                         <View style={styles.medicationHeader}>
                           <Text style={styles.medicationName}>{med.name}</Text>
                           <Text style={styles.medicationDosage}>{med.dosage}</Text>
@@ -125,16 +205,19 @@ const MedTrack = ({ navigation }) => {
                         
                         <View style={styles.medicationDetailsContainer}>
                           <View style={styles.medicationDetailItem}>
+                            <Text style={styles.medicationDetailLabel}>Time</Text>
                             <Text style={styles.medicationDetailText}>{med.time || '9:00 AM'}</Text>
                           </View>
                           <View style={styles.medicationDetailItem}>
+                            <Text style={styles.medicationDetailLabel}>Quantity</Text>
                             <Text style={styles.medicationDetailText}>{med.quantity || '1 Capsule'}</Text>
                           </View>
                           <View style={styles.medicationDetailItem}>
-                            <Text style={styles.medicationDetailText}>{med.instructions || 'Before Meal'}</Text>
+                            <Text style={styles.medicationDetailLabel}>Instructions</Text>
+                            <Text style={styles.medicationDetailText}>{med.mealOption || 'Before Meal'}</Text>
                           </View>
                         </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 );
@@ -173,6 +256,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 'auto',
     marginRight: 20,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 50,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
   },
   
   // No Medications View Styles
@@ -312,9 +404,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  medicationDetailLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
   medicationDetailText: {
     fontSize: 16,
     color: '#333',
+    textAlign: 'center',
   }
 });
 

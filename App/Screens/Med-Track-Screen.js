@@ -1,15 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { collection, getDocs } from 'firebase/firestore';
+import { auth, db } from '../../config/firebase'; 
 
 const MedTrack = ({ navigation }) => {
   const [medications, setMedications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch medications from Firestore
+  useEffect(() => {
+    const fetchMedications = async () => {
+      try {
+        const medicationsCollection = collection(db, 'medications');
+        const medicationSnapshot = await getDocs(medicationsCollection);
+        const medicationList = medicationSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setMedications(medicationList);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching medications: ", error);
+        setLoading(false);
+      }
+    };
 
+    fetchMedications();
+  }, []);
+
+  // Group medications by time of day
+  const groupedMedications = medications.reduce((groups, med) => {
+    const timeOfDay = med.timeOfDay || 'Other';
+    if (!groups[timeOfDay]) {
+      groups[timeOfDay] = [];
+    }
+    groups[timeOfDay].push(med);
+    return groups;
+  }, { Morning: [], Afternoon: [], Night: [], Other: [] });
+
+  // Sort time of day sections
+  const timeOrder = ['Morning', 'Afternoon', 'Night', 'Other'];
+  
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
-        {/* back button */}
+        {/* Back button and header */}
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -17,87 +53,96 @@ const MedTrack = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={24} color="black" />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>MediLens+</Text>
         </View>
         
-        {/* MediLens+  text and Subtitle */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>MediLens+</Text>
-          <Text style={styles.subtitle}>Add your medications to keep a Log</Text>
-        </View>
-        
-        {/* Setup Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Set Up Medication</Text>
-          
-          <View style={styles.featureList}>
-            <Text style={styles.featureText}>Track all your medications in one place</Text>
-            <Text style={styles.featureText}>Set a Schedule and get reminders</Text>
-            <Text style={styles.featureText}>Learn about the medication</Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => {
-              // Navigate to add medication screen
-              // navigation.navigate('AddMedication');
-              console.log('Navigate to add medication screen');
-            }}
-          >
-            <Text style={styles.addButtonText}>Add Medication</Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* Previously Added Section */}
-        <Text style={styles.sectionHeader}>Previously Added</Text>
-        
-        {medications.length > 0 ? (
-          <View style={styles.medicationsList}>
-            {medications.map(med => (
-              <View key={med.id} style={styles.medicationItem}>
-                <Text style={styles.medicationName}>{med.name}</Text>
-                <Text style={styles.medicationDetails}>
-                  {med.dosage} • {med.frequency}
-                </Text>
+        {/* No Medications View */}
+        {medications.length === 0 ? (
+          <>
+            {/* Setup Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Set Up Medication</Text>
+              
+              <View style={styles.featureList}>
+                <Text style={styles.featureText}>Track all your medications in one place</Text>
+                <Text style={styles.featureText}>Set a Schedule and get reminders</Text>
+                <Text style={styles.featureText}>Learn about the medication</Text>
               </View>
-            ))}
-          </View>
+              
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={() => {
+                  navigation.navigate('AddMedication');
+                }}
+              >
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Navigation buttons */}
+            <View style={styles.navButtonsContainer}>
+              <TouchableOpacity style={styles.navButtonPrimary}>
+                <Text style={styles.navButtonPrimaryText}>Up Next</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.navButtonSecondary}>
+                <Text style={styles.navButtonSecondaryText}>All</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* No Meds Message */}
+            <View style={styles.noMedsContainer}>
+              <Text style={styles.noMedsText}>No Meds Added</Text>
+            </View>
+          </>
         ) : (
-          <View style={styles.infoSection}>
-            <Text style={styles.infoTitle}>Information</Text>
-            <Text style={styles.infoText}>
-              Why it's Important to keep up with what you're taking
-            </Text>
-          </View>
+          <>
+            {/* Medications View */}
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity style={styles.actionButtonSecondary}>
+                <Text style={styles.actionButtonSecondaryText}>All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.actionButtonPrimary}
+                onPress={() => navigation.navigate('AddMedication')}
+              >
+                <Text style={styles.actionButtonPrimaryText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Medication List by Time of Day */}
+            {timeOrder.map(timeOfDay => {
+              if (groupedMedications[timeOfDay] && groupedMedications[timeOfDay].length > 0) {
+                return (
+                  <View key={timeOfDay} style={styles.timeSection}>
+                    <Text style={styles.timeSectionTitle}>{timeOfDay}</Text>
+                    
+                    {groupedMedications[timeOfDay].map(med => (
+                      <View key={med.id} style={styles.medicationCard}>
+                        <View style={styles.medicationHeader}>
+                          <Text style={styles.medicationName}>{med.name}</Text>
+                          <Text style={styles.medicationDosage}>{med.dosage}</Text>
+                        </View>
+                        
+                        <View style={styles.medicationDetailsContainer}>
+                          <View style={styles.medicationDetailItem}>
+                            <Text style={styles.medicationDetailText}>{med.time || '9:00 AM'}</Text>
+                          </View>
+                          <View style={styles.medicationDetailItem}>
+                            <Text style={styles.medicationDetailText}>{med.quantity || '1 Capsule'}</Text>
+                          </View>
+                          <View style={styles.medicationDetailItem}>
+                            <Text style={styles.medicationDetailText}>{med.instructions || 'Before Meal'}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              }
+              return null;
+            })}
+          </>
         )}
-        
-        <TouchableOpacity 
-          style={styles.viewAllButton}
-          onPress={() => {
-            console.log('Navigate to all medications view');
-          }}
-        >
-          <Text style={styles.viewAllText}>View all Medication</Text>
-        </TouchableOpacity>
-        
-        {/* Medication Log Section */}
-        <Text style={styles.sectionHeader}>Medication Log</Text>
-        
-        <View style={styles.logSection}>
-          <Text style={styles.logTitle}>Daily Logs</Text>
-          <Text style={styles.logText}>
-            Log the medications you have taken to keep track of it
-          </Text>
-          
-          <TouchableOpacity 
-            style={[styles.addButton, { marginTop: 20 }]}
-            onPress={() => {
-        
-              console.log('Navigate to medication log screen');
-            }}
-          >
-            <Text style={styles.addButtonText}>Log Medication</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -116,44 +161,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   backButton: {
-    padding: 8,
-    borderRadius: 20,
+    padding: 10,
+    borderRadius: 50,
     backgroundColor: '#f0f0f0',
   },
-  titleContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    //paddingVertical: 10,
-  },
-  title: {
-    fontSize: 32,
+  headerTitle: {
+    fontSize: 28,
     fontWeight: 'bold',
-    textAlign: 'center',
+    marginLeft: 'auto',
+    marginRight: 20,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#333',
-    textAlign: 'center',
-    marginTop: 10,
-    marginBottom: 10,
-    
-  },
+  
+  // No Medications View Styles
   section: {
     backgroundColor: '#f0f0f0',
     borderRadius: 12,
     padding: 20,
-    margin: 15,
+    margin: 20,
   },
   sectionTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 15,
+    marginBottom: 20,
   },
   featureList: {
-    marginBottom: 15,
+    marginBottom: 30,
   },
   featureText: {
     fontSize: 16,
@@ -165,79 +200,122 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 15,
     alignItems: 'center',
-    marginTop: 5,
   },
   addButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  sectionHeader: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginHorizontal: 20,
-   // marginTop: 5,
-    marginBottom: 10,
-  },
-  infoSection: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    padding: 20,
-    margin: 15,
-    marginTop: 10,
-  },
-  infoTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  infoText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  medicationsList: {
+  navButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     margin: 20,
   },
-  medicationItem: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 10,
+  navButtonPrimary: {
+    backgroundColor: '#000',
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    marginRight: 10,
   },
-  medicationName: {
-    fontSize: 18,
+  navButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 5,
   },
-  medicationDetails: {
-    fontSize: 14,
+  navButtonSecondary: {
+    backgroundColor: '#D3D3D3',
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    marginLeft: 10,
+  },
+  navButtonSecondaryText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  noMedsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 50,
+  },
+  noMedsText: {
+    fontSize: 16,
     color: '#666',
   },
-  viewAllButton: {
-    alignSelf: 'flex-end',
-    marginHorizontal: 20,
-    marginBottom: 15,
+  
+  // Medications View Styles
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginVertical: 20,
   },
-  viewAllText: {
-    color: '#0066cc',
+  actionButtonSecondary: {
+    backgroundColor: '#D3D3D3',
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    marginRight: 10,
+  },
+  actionButtonSecondaryText: {
+    color: '#000',
     fontSize: 16,
+    fontWeight: 'bold',
   },
-  logSection: {
+  actionButtonPrimary: {
+    backgroundColor: '#000',
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    marginLeft: 10,
+  },
+  actionButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  timeSection: {
+    marginVertical: 10,
+    paddingHorizontal: 20,
+  },
+  timeSectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  medicationCard: {
     backgroundColor: '#f0f0f0',
     borderRadius: 12,
-    padding: 20,
-    margin: 20,
-    marginTop: 10,
-  },
-  logTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
     marginBottom: 15,
+    overflow: 'hidden',
   },
-  logText: {
+  medicationHeader: {
+    padding: 15,
+  },
+  medicationName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  medicationDosage: {
+    fontSize: 16,
+    color: '#444',
+    marginTop: 5,
+  },
+  medicationDetailsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#e0e0e0',
+  },
+  medicationDetailItem: {
+    flex: 1,
+    padding: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicationDetailText: {
     fontSize: 16,
     color: '#333',
-  },
+  }
 });
 
 export default MedTrack;

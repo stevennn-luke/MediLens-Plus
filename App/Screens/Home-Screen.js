@@ -1,31 +1,49 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
-
 const HomeScreen = () => {
-
   const navigation = useNavigation();
+  const currentDate = new Date();
+  const formattedDate = `${currentDate.getDate()}${getDaySuffix(currentDate.getDate())} ${getMonthName(currentDate.getMonth())} ${currentDate.getFullYear()}`;
+
+  function getDaySuffix(day) {
+    if (day > 3 && day < 21) return 'th';
+    switch (day % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  }
+
+  function getMonthName(month) {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return months[month];
+  }
 
   const navigateToProfile = () => {
     navigation.navigate('MedicalIDScreen');
     console.log('pressed Profile');
   };
 
-
   const handleAdd = () => {
     navigation.navigate('MedTrack');
     console.log('pressed Addmed');
   };
 
+  const navigateToMediVision = () => {
+    navigation.navigate('MediVision');
+    console.log('pressed MediVision');
+  };
+
   return (
     <ScrollView style={styles.container}>
-
       <View style={styles.header}>
         <Text style={styles.logo}>MediLens+</Text>
         <TouchableOpacity 
           style={styles.profileButton} 
-         onPress={navigateToProfile}
+          onPress={navigateToProfile}
         >
           <View style={styles.profileCircle}>
             <Text style={styles.profileInitial}>P</Text>
@@ -33,12 +51,21 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.welcomeText}>Welcome to MediLens+</Text>
+      {/* Today's Date Section */}
+      <View style={styles.dateSection}>
+        <Text style={styles.todayText}>Today</Text>
+        <Text style={styles.dateText}>{formattedDate}</Text>
+      </View>
 
-          {/* Daily Log Count */}
-          <Text style={styles.sectionTitle}>Daily log Count</Text>
-      <Text style={styles.sectionDescription}>Shows the number of days you logged a medication</Text>
-      <Text style={styles.countNumber}>01</Text>
+      {/* Navigation Tabs */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity style={styles.activeTab}>
+          <Text style={styles.activeTabText}>Up Next</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.inactiveTab}>
+          <Text style={styles.inactiveTabText}>All</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Set up Medication */}
       <View style={styles.card}>
@@ -46,18 +73,12 @@ const HomeScreen = () => {
         <Text style={styles.cardDescription}>
           All your medications in one place, Set your schedule, check for interactions, and track what you take.
         </Text>
-        <TouchableOpacity style={styles.blackButton} 
-        onPress={handleAdd} 
-        >
+        <TouchableOpacity style={styles.blackButton} onPress={handleAdd}>
           <Text style={styles.buttonText}>Add a Medication</Text>
         </TouchableOpacity>
       </View>
 
-
-      {/* About Medication Tracking */}
-      <Text style={styles.sectionTitle}>About Medication Tracking</Text>
-      
-      {/* About Medication Tracking */}
+      {/* Track Your Medication */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Track Your Medication</Text>
         <Text style={styles.cardDescription}>
@@ -68,17 +89,29 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Reminders Section */}
-      <Text style={styles.sectionTitle}>Reminders</Text>
-      <Text style={styles.sectionDescription}>Don't worry we'll send in a notification to remind you</Text>
-      
-      {/* Reminder Boxes - Empty placeholders */}
-      <View style={styles.reminderContainer}>
-        <View style={styles.reminderBox}></View>
-        <View style={styles.reminderBox}></View>
-        <View style={styles.reminderBox}></View>
-        <View style={styles.reminderBox}></View>
+      {/* Medication Log Section */}
+      <Text style={styles.sectionTitle}>Medication Log</Text>
+
+      {/* Daily Logs */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Daily Logs</Text>
+        <Text style={styles.cardDescription}>
+          Log the medications you have taken to keep track of it
+        </Text>
       </View>
+
+      {/* MediVision Section */}
+      <Text style={styles.sectionTitle}>MediVision</Text>
+      <Text style={styles.sectionDescription}>
+        Try out out MediVision where it gives information from the package of the medication
+      </Text>
+      
+      <TouchableOpacity 
+        style={styles.mediVisionButton} 
+        onPress={navigateToMediVision}
+      >
+        <Text style={styles.buttonText}>MediVision</Text>
+      </TouchableOpacity>
 
       {/* Bottom padding */}
       <View style={styles.bottomPadding} />
@@ -116,11 +149,40 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
   },
-  welcomeText: {
-    fontSize: 20,
-    textAlign: 'center',
-    marginVertical: 25,
-    
+  dateSection: {
+    marginVertical: 15,
+  },
+  todayText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  dateText: {
+    fontSize: 18,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginVertical: 20,
+  },
+  activeTab: {
+    backgroundColor: 'black',
+    borderRadius: 25,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginRight: 10,
+  },
+  activeTabText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  inactiveTab: {
+    backgroundColor: '#e0e0e0',
+    borderRadius: 25,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  inactiveTabText: {
+    color: 'black',
+    fontWeight: 'bold',
   },
   card: {
     backgroundColor: '#f2f2f2',
@@ -156,12 +218,7 @@ const styles = StyleSheet.create({
   },
   sectionDescription: {
     fontSize: 16,
-    marginBottom: 10,
-  },
-  countNumber: {
-    fontSize: 60,
-    fontWeight: 'bold',
-    marginVertical: 10,
+    marginBottom: 20,
   },
   readMoreButton: {
     alignSelf: 'flex-end',
@@ -170,18 +227,13 @@ const styles = StyleSheet.create({
     color: 'blue',
     fontWeight: '500',
   },
-  reminderContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  reminderBox: {
-    width: '48%',
-    height: 80,
-    backgroundColor: '#f2f2f2',
-    borderRadius: 10,
-    marginBottom: 10,
+  mediVisionButton: {
+    backgroundColor: 'black',
+    borderRadius: 25,
+    padding: 15,
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginBottom: 20,
   },
   bottomPadding: {
     height: 30,

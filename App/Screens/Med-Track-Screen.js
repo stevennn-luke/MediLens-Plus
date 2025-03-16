@@ -3,28 +3,23 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView } fr
 import { Ionicons } from '@expo/vector-icons';
 import { collection, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase'; 
+import { useFocusEffect } from '@react-navigation/native';
 
 const MedTrack = ({ navigation }) => {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
 
-
   const getTimeOfDay = (timeString) => {
-
     if (!timeString) return 'Other';
     
-
     let hours = 0;
     let minutes = 0;
     let isPM = false;
     
-
     if (timeString.includes(':')) {
-      
       const timeParts = timeString.split(':');
       hours = parseInt(timeParts[0]);
       
-     
       if (timeParts[1]) {
         if (timeParts[1].includes('AM')) {
           minutes = parseInt(timeParts[1].split(' ')[0]);
@@ -32,73 +27,153 @@ const MedTrack = ({ navigation }) => {
         } else if (timeParts[1].includes('PM')) {
           minutes = parseInt(timeParts[1].split(' ')[0]);
           isPM = true;
-          if (hours !== 12) hours += 12;
+          // Only add 12 if it's 1pm-11pm (don't add for 12pm)
+          if (hours < 12) hours += 12;
         } else {
-         
           minutes = parseInt(timeParts[1]);
         }
       }
     } else {
-      
-      hours = parseInt(timeString);
+      // Try to parse the entire string as a time
+      try {
+        hours = parseInt(timeString);
+      } catch (error) {
+        console.error("Invalid time format:", timeString);
+        return 'Other';
+      }
     }
     
-    // Convert 12-hour format to 24-hour
-    if (isPM && hours !== 12) {
+    // Convert 12-hour format to 24-hour if needed
+    if (isPM && hours < 12) {
       hours += 12;
     }
     if (!isPM && hours === 12) {
       hours = 0;
     }
     
-
     // Morning: 6:00 AM - 11:59 AM
     if (hours >= 6 && hours < 12) {
       return 'Morning';
     }
-    // Afternoon: 12:00 PM - 3:00 PM
+    // Afternoon: 12:00 PM - 3:00 PM (15:00)
     else if (hours >= 12 && hours < 15) {
       return 'Afternoon';
     }
-    // Evening: 3:00 PM - 8:00 PM
+    // Evening: 3:00 PM - 8:00 PM (15:00 - 20:00)
     else if (hours >= 15 && hours < 20) {
       return 'Evening';
     }
-    // Night: 8:00 PM - 5:59 AM
+    // Night: 8:00 PM - 5:59 AM (20:00 - 5:59)
     else {
       return 'Night';
     }
   };
 
-  // Fetch medications from Firestore
-  useEffect(() => {
-    const fetchMedications = async () => {
-      try {
-       
-        const userId = auth.currentUser ? auth.currentUser.uid : null;
-        if (!userId) {
-          console.error("No user logged in");
-          setLoading(false);
-          return;
-        }
-
+  // Helper function to convert time string to minutes for sorting
+  const timeToMinutes = (timeString) => {
+    if (!timeString) return 0;
     
-        const medicationsCollection = collection(db, 'users', userId, 'medications');
-        const medicationSnapshot = await getDocs(medicationsCollection);
-        const medicationList = medicationSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          // Assign timeOfDay based on the time field
-          timeOfDay: getTimeOfDay(doc.data().time)
-        }));
-        setMedications(medicationList);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error fetching medications: ", error);
-        setLoading(false);
+    let hours = 0;
+    let minutes = 0;
+    let isPM = false;
+    
+    if (timeString.includes(':')) {
+      const timeParts = timeString.split(':');
+      hours = parseInt(timeParts[0]);
+      
+      if (timeParts[1]) {
+        if (timeParts[1].includes('AM')) {
+          minutes = parseInt(timeParts[1].split(' ')[0]);
+          isPM = false;
+        } else if (timeParts[1].includes('PM')) {
+          minutes = parseInt(timeParts[1].split(' ')[0]);
+          isPM = true;
+          if (hours < 12) hours += 12;
+        } else {
+          minutes = parseInt(timeParts[1]);
+        }
       }
-    };
+    } else {
+      try {
+        hours = parseInt(timeString);
+      } catch (error) {
+        return 0;
+      }
+    }
+    
+    // Convert 12-hour format to 24-hour
+    if (isPM && hours < 12) {
+      hours += 12;
+    }
+    if (!isPM && hours === 12) {
+      hours = 0;
+    }
+    
+    return hours * 60 + minutes;
+  };
 
+  // Function to fetch medications
+  const fetchMedications = async () => {
+    try {
+      setLoading(true);
+      const userId = auth.currentUser ? auth.currentUser.uid : null;
+      if (!userId) {
+        console.error("No user logged in");
+        setLoading(false);
+        return;
+      }
+
+      const medicationsCollection = collection(db, 'users', userId, 'medications');
+      const medicationSnapshot = await getDocs(medicationsCollection);
+      
+      if (medicationSnapshot.empty) {
+        console.log("No medications found in the collection");
+        setMedications([]);
+        setLoading(false);
+        return;
+      }
+
+      const medicationList = medicationSnapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log("Medication data:", data); // Debug: Log each medication
+        
+        // Calculate time of day
+        const timeOfDay = getTimeOfDay(data.time);
+        
+        return {
+          id: doc.id,
+          ...data,
+          timeOfDay: timeOfDay,
+          // Store minutes for sorting
+          timeInMinutes: timeToMinutes(data.time)
+        };
+      });
+      
+      // Sort the entire medication list by time
+      medicationList.sort((a, b) => a.timeInMinutes - b.timeInMinutes);
+      
+      console.log("Processed medications:", medicationList); // Debug: Log processed data
+      setMedications(medicationList);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching medications: ", error);
+      setLoading(false);
+    }
+  };
+
+  // Use useFocusEffect to reload data whenever the screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("Screen focused, fetching medications..."); // Debug
+      fetchMedications();
+      return () => {
+        // Do any cleanup if needed
+      };
+    }, [])
+  );
+
+  // Initial load
+  useEffect(() => {
     fetchMedications();
   }, []);
 
@@ -112,6 +187,10 @@ const MedTrack = ({ navigation }) => {
     return groups;
   }, { Morning: [], Afternoon: [], Evening: [], Night: [], Other: [] });
 
+  // Sort medications in each group by time
+  Object.keys(groupedMedications).forEach(key => {
+    groupedMedications[key].sort((a, b) => a.timeInMinutes - b.timeInMinutes);
+  });
 
   const timeOrder = ['Morning', 'Afternoon', 'Evening', 'Night', 'Other'];
   
@@ -199,8 +278,12 @@ const MedTrack = ({ navigation }) => {
                         onPress={() => navigation.navigate('MedicationDetail', { medicationId: med.id })}
                       >
                         <View style={styles.medicationHeader}>
-                          <Text style={styles.medicationName}>{med.name}</Text>
-                          <Text style={styles.medicationDosage}>{med.dosage}</Text>
+                          <Text style={styles.medicationName}>
+                            {med.medicationName || "Unnamed Medication"}
+                          </Text>
+                          <Text style={styles.medicationDosage}>
+                            {med.dosage || "No dosage specified"}
+                          </Text>
                         </View>
                         
                         <View style={styles.medicationDetailsContainer}>
@@ -232,6 +315,7 @@ const MedTrack = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  // Styles remain unchanged
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -336,7 +420,6 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   
-  // Medications View Styles
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',

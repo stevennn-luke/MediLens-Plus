@@ -20,7 +20,7 @@ const MedTrack = ({ navigation }) => {
     
 
     if (timeString.includes(':')) {
-      // Format like "9:00 AM" or "14:30"
+      
       const timeParts = timeString.split(':');
       hours = parseInt(timeParts[0]);
       

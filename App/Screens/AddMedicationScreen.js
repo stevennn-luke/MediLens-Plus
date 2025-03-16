@@ -28,7 +28,7 @@ const AddMedicationScreen = ({ navigation, route }) => {
   const [activeTab, setActiveTab] = useState(null);
   const [medicationImage, setMedicationImage] = useState(null);
   
-  // New state variables for periodicity, duration, and stock
+
   const [periodicity, setPeriodicity] = useState('Daily');
   const [duration, setDuration] = useState('30 days');
   const [stock, setStock] = useState('30 tablets');
@@ -45,7 +45,7 @@ const AddMedicationScreen = ({ navigation, route }) => {
   const snoozeOptions = ['5 minutes', '10 minutes', '15 minutes', '30 minutes'];
 
   const pickImage = async () => {
-    // Ask for permission to access gallery
+    // Permission to access gallery
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Please allow access to your photo library to select an image.');
@@ -66,7 +66,7 @@ const AddMedicationScreen = ({ navigation, route }) => {
   };
 
   const takePhoto = async () => {
-    // Ask for permission to access camera
+    // Permission to access camera
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Please allow access to your camera to take a photo.');
@@ -115,7 +115,7 @@ const AddMedicationScreen = ({ navigation, route }) => {
         return;
       }
 
-      // Upload image to Firebase Storage if exists
+      // Upload image to Firebase Storage 
       let imageUrl = null;
       if (medicationImage) {
         const imageResponse = await fetch(medicationImage);
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: -8,
     top: -8,
-    backgroundColor: '#3f8ae0', // Changed from orange to blue
+    backgroundColor: '#3f8ae0', 
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   addPlanButton: {
-    backgroundColor: '#000000', // Changed to black
+    backgroundColor: '#000000', 
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
@@ -572,17 +572,17 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e0e0',
   },
   selectedOption: {
-    backgroundColor: '#f0f8ff', // Light blue background for selected option
+    backgroundColor: '#f0f8ff', 
   },
   optionText: {
     fontSize: 16,
   },
   selectedOptionText: {
-    color: '#3f8ae0', // Changed from orange to blue
+    color: '#3f8ae0', 
     fontWeight: 'bold',
   },
   checkmark: {
-    color: '#3f8ae0', // Changed from orange to blue
+    color: '#3f8ae0', 
     fontSize: 18,
   },
 });

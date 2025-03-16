@@ -8,23 +8,23 @@ const MedTrack = ({ navigation }) => {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Function to determine time of day based on time string
+
   const getTimeOfDay = (timeString) => {
-    // Default if no time is provided
+
     if (!timeString) return 'Other';
     
-    // Parse time string (assuming format like "9:00 AM" or "14:30")
+
     let hours = 0;
     let minutes = 0;
     let isPM = false;
     
-    // Handle different time formats
+
     if (timeString.includes(':')) {
       // Format like "9:00 AM" or "14:30"
       const timeParts = timeString.split(':');
       hours = parseInt(timeParts[0]);
       
-      // Handle minutes and AM/PM if present
+     
       if (timeParts[1]) {
         if (timeParts[1].includes('AM')) {
           minutes = parseInt(timeParts[1].split(' ')[0]);
@@ -34,12 +34,12 @@ const MedTrack = ({ navigation }) => {
           isPM = true;
           if (hours !== 12) hours += 12;
         } else {
-          // 24-hour format
+         
           minutes = parseInt(timeParts[1]);
         }
       }
     } else {
-      // Simple hour format
+      
       hours = parseInt(timeString);
     }
     
@@ -51,7 +51,7 @@ const MedTrack = ({ navigation }) => {
       hours = 0;
     }
     
-    // Categorize based on time periods
+
     // Morning: 6:00 AM - 11:59 AM
     if (hours >= 6 && hours < 12) {
       return 'Morning';
@@ -74,7 +74,7 @@ const MedTrack = ({ navigation }) => {
   useEffect(() => {
     const fetchMedications = async () => {
       try {
-        // Make sure we're getting medications for the current user
+       
         const userId = auth.currentUser ? auth.currentUser.uid : null;
         if (!userId) {
           console.error("No user logged in");
@@ -82,7 +82,7 @@ const MedTrack = ({ navigation }) => {
           return;
         }
 
-        // Reference the medications subcollection for this user
+    
         const medicationsCollection = collection(db, 'users', userId, 'medications');
         const medicationSnapshot = await getDocs(medicationsCollection);
         const medicationList = medicationSnapshot.docs.map(doc => ({
@@ -112,7 +112,7 @@ const MedTrack = ({ navigation }) => {
     return groups;
   }, { Morning: [], Afternoon: [], Evening: [], Night: [], Other: [] });
 
-  // Sort time of day sections in chronological order
+
   const timeOrder = ['Morning', 'Afternoon', 'Evening', 'Night', 'Other'];
   
   return (
@@ -267,7 +267,6 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   
-  // No Medications View Styles
   section: {
     backgroundColor: '#f0f0f0',
     borderRadius: 12,

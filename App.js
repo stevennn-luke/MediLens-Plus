@@ -16,6 +16,7 @@ import MedicalIDScreen from './App/Screens/Medical-Id-Screem';
 import HomeScreen from './App/Screens/Home-Screen';
 import MedTrack from './App/Screens/Med-Track-Screen';
 import AddMedicationScreen from './App/Screens/AddMedicationScreen';
+import ActualProfile from './App/Screens/ActualProfileScreen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import 'react-native-gesture-handler'; 
@@ -37,7 +38,8 @@ export default function App() {
         <Stack.Screen name="ProfileScreen" component={ProfileScreen} /> 
         <Stack.Screen name="MedicalIDScreen" component={MedicalIDScreen} />  
         <Stack.Screen name="MedTrack" component={MedTrack} />  
-        <Stack.Screen name="AddMed" component={AddMedicationScreen} />
+        <Stack.Screen name="AddMed" component={AddMedicationScreen} /> 
+        <Stack.Screen name="ActualProfile" component={ActualProfile} /> 
       </Stack.Navigator>
     </NavigationContainer>
     

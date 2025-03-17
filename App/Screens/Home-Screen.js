@@ -444,7 +444,7 @@ const HomeScreen = () => {
   };
 
   const navigateToProfile = () => {
-    navigation.navigate('MedicalIDScreen');
+    navigation.navigate('ActualProfile');
     console.log('pressed Profile');
   };
 
@@ -905,7 +905,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   
-  // Next Medication Section styles
   nextMedicationSection: {
     marginBottom: 25,
   },

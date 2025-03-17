@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase'; 
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -10,6 +10,7 @@ const MedTrack = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
 
   const getTimeOfDay = (timeString) => {
+    // Existing time of day function remains unchanged
     if (!timeString) return 'Other';
     
     let hours = 0;
@@ -71,6 +72,7 @@ const MedTrack = ({ navigation }) => {
 
   // Helper function to convert time string to minutes for sorting
   const timeToMinutes = (timeString) => {
+    // Existing time to minutes function remains unchanged
     if (!timeString) return 0;
     
     let hours = 0;
@@ -110,6 +112,52 @@ const MedTrack = ({ navigation }) => {
     }
     
     return hours * 60 + minutes;
+  };
+
+  // Function to handle medication deletion
+  const handleDeleteMedication = async (medicationId, medicationName) => {
+    try {
+      const userId = auth.currentUser ? auth.currentUser.uid : null;
+      if (!userId) {
+        console.error("No user logged in");
+        return;
+      }
+
+      // Show confirmation alert
+      Alert.alert(
+        "Delete Medication",
+        `Are you sure you want to delete ${medicationName || "this medication"}?`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Delete",
+            onPress: async () => {
+              try {
+                // Reference to the specific medication document
+                const medicationRef = doc(db, 'users', userId, 'medications', medicationId);
+                
+                // Delete the document from Firestore
+                await deleteDoc(medicationRef);
+                console.log(`Medication ${medicationId} deleted successfully`);
+                
+                // Update local state to reflect the deletion
+                setMedications(prevMeds => prevMeds.filter(med => med.id !== medicationId));
+              } catch (error) {
+                console.error("Error deleting medication: ", error);
+                Alert.alert("Error", "Failed to delete medication. Please try again.");
+              }
+            },
+            style: "destructive"
+          }
+        ]
+      );
+    } catch (error) {
+      console.error("Error in delete operation: ", error);
+      Alert.alert("Error", "Something went wrong. Please try again.");
+    }
   };
 
   // Function to fetch medications
@@ -276,6 +324,8 @@ const MedTrack = ({ navigation }) => {
                         key={med.id} 
                         style={styles.medicationCard}
                         onPress={() => navigation.navigate('MedicationDetail', { medicationId: med.id })}
+                        onLongPress={() => handleDeleteMedication(med.id, med.medicationName)}
+                        delayLongPress={500} // Half a second long press to trigger
                       >
                         <View style={styles.medicationHeader}>
                           <Text style={styles.medicationName}>

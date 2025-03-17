@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { collection, getDocs } from 'firebase/firestore';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { collection, getDocs, doc, setDoc, addDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
+import * as Notifications from 'expo-notifications';
+
+// Configure notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -12,6 +22,16 @@ const HomeScreen = () => {
   
   const currentDate = new Date();
   const formattedDate = `${currentDate.getDate()}${getDaySuffix(currentDate.getDate())} ${getMonthName(currentDate.getMonth())} ${currentDate.getFullYear()}`;
+
+  // Request notification permissions
+  useEffect(() => {
+    (async () => {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Notification permissions not granted');
+      }
+    })();
+  }, []);
 
   function getDaySuffix(day) {
     if (day > 3 && day < 21) return 'th';
@@ -46,17 +66,24 @@ const HomeScreen = () => {
         } else if (timeParts[1].includes('PM')) {
           minutes = parseInt(timeParts[1].split(' ')[0]);
           isPM = true;
-          if (hours !== 12) hours += 12;
+          // Only add 12 if it's 1pm-11pm (don't add for 12pm)
+          if (hours < 12) hours += 12;
         } else {
           minutes = parseInt(timeParts[1]);
         }
       }
     } else {
-      hours = parseInt(timeString);
+      // Try to parse the entire string as a time
+      try {
+        hours = parseInt(timeString);
+      } catch (error) {
+        console.error("Invalid time format:", timeString);
+        return 'Other';
+      }
     }
     
-    // Convert 12-hour format to 24-hour
-    if (isPM && hours !== 12) {
+    // Convert 12-hour format to 24-hour if needed
+    if (isPM && hours < 12) {
       hours += 12;
     }
     if (!isPM && hours === 12) {
@@ -67,48 +94,219 @@ const HomeScreen = () => {
     if (hours >= 6 && hours < 12) {
       return 'Morning';
     }
-    // Afternoon: 12:00 PM - 3:00 PM
+    // Afternoon: 12:00 PM - 3:00 PM (15:00)
     else if (hours >= 12 && hours < 15) {
       return 'Afternoon';
     }
-    // Evening: 3:00 PM - 8:00 PM
+    // Evening: 3:00 PM - 8:00 PM (15:00 - 20:00)
     else if (hours >= 15 && hours < 20) {
       return 'Evening';
     }
-    // Night: 8:00 PM - 5:59 AM
+    // Night: 8:00 PM - 5:59 AM (20:00 - 5:59)
     else {
       return 'Night';
     }
   };
 
-  // Fetch medications from Firestore
-  useEffect(() => {
-    const fetchMedications = async () => {
-      try {
-        const userId = auth.currentUser ? auth.currentUser.uid : null;
-        if (!userId) {
-          console.error("No user logged in");
-          setLoading(false);
-          return;
+  // Convert time string to minutes since midnight for comparison
+  const timeToMinutes = (timeString) => {
+    if (!timeString) return -1;
+    
+    let hours = 0;
+    let minutes = 0;
+    let isPM = false;
+    
+    if (timeString.includes(':')) {
+      const timeParts = timeString.split(':');
+      hours = parseInt(timeParts[0]);
+      
+      if (timeParts[1]) {
+        if (timeParts[1].includes('AM')) {
+          minutes = parseInt(timeParts[1].split(' ')[0]);
+          isPM = false;
+        } else if (timeParts[1].includes('PM')) {
+          minutes = parseInt(timeParts[1].split(' ')[0]);
+          isPM = true;
+          // Only add 12 if it's 1pm-11pm (don't add for 12pm)
+          if (hours < 12) hours += 12;
+        } else {
+          minutes = parseInt(timeParts[1]);
         }
-
-        const medicationsCollection = collection(db, 'users', userId, 'medications');
-        const medicationSnapshot = await getDocs(medicationsCollection);
-        const medicationList = medicationSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timeOfDay: getTimeOfDay(doc.data().time)
-        }));
-        setMedications(medicationList);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error fetching medications: ", error);
-        setLoading(false);
       }
-    };
+    } else {
+      try {
+        hours = parseInt(timeString);
+      } catch (error) {
+        console.error("Invalid time format:", timeString);
+        return -1;
+      }
+    }
+    
+    // Convert 12-hour format to 24-hour if needed
+    if (isPM && hours < 12) {
+      hours += 12;
+    }
+    if (!isPM && hours === 12) {
+      hours = 0;
+    }
+    
+    return hours * 60 + minutes;
+  };
 
-    fetchMedications();
-  }, []);
+  // Schedule notification for a medication
+  const scheduleNotification = async (medication) => {
+    try {
+      const timeInMinutes = timeToMinutes(medication.time);
+      if (timeInMinutes === -1) return;
+      
+      // Get notify setting, default to 15 minutes if not specified
+      let notifyMinutesBefore = 15;
+      
+      if (medication.notify && medication.notify.trim() !== '') {
+        // Try to parse the notify time
+        const notifyMatch = medication.notify.match(/(\d+)\s*(?:minute|min|m)?s?/i);
+        if (notifyMatch && notifyMatch[1]) {
+          notifyMinutesBefore = parseInt(notifyMatch[1]);
+        }
+      }
+      
+      // Calculate notification time
+      const now = new Date();
+      let notificationDate = new Date();
+      let notificationMinutes = timeInMinutes - notifyMinutesBefore;
+      
+      // If the notification time has already passed today, schedule for tomorrow
+      if (notificationMinutes < (now.getHours() * 60 + now.getMinutes())) {
+        notificationDate.setDate(notificationDate.getDate() + 1);
+      }
+      
+      // Set the correct time for notification
+      notificationDate.setHours(Math.floor(notificationMinutes / 60));
+      notificationDate.setMinutes(notificationMinutes % 60);
+      notificationDate.setSeconds(0);
+      
+      // Cancel any existing notifications for this medication
+      await cancelMedicationNotification(medication.id);
+      
+      // Schedule the notification
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Medication Reminder',
+          body: `Time to take ${medication.medicationName || medication.name} in ${notifyMinutesBefore} minutes`,
+          data: { medicationId: medication.id },
+        },
+        trigger: notificationDate,
+      });
+      
+      // Save notification ID to Firestore for reference
+      const userId = auth.currentUser.uid;
+      const notificationRef = doc(db, 'users', userId, 'medications', medication.id);
+      await setDoc(notificationRef, { notificationId: notificationId }, { merge: true });
+      
+      console.log(`Notification scheduled for ${medication.medicationName || medication.name} at ${notificationDate.toLocaleTimeString()}`);
+    } catch (error) {
+      console.error("Error scheduling notification:", error);
+    }
+  };
+
+  // Cancel notification for a medication
+  const cancelMedicationNotification = async (medicationId) => {
+    try {
+      const userId = auth.currentUser.uid;
+      const medicationRef = doc(db, 'users', userId, 'medications', medicationId);
+      const medicationDoc = await getDoc(medicationRef);
+      
+      if (medicationDoc.exists() && medicationDoc.data().notificationId) {
+        await Notifications.cancelScheduledNotificationAsync(medicationDoc.data().notificationId);
+      }
+    } catch (error) {
+      console.error("Error canceling notification:", error);
+    }
+  };
+
+  // Record medication as taken
+  const recordMedicationTaken = async (medication) => {
+    try {
+      const userId = auth.currentUser.uid;
+      const takenAt = new Date();
+      
+      // Add to medication logs collection
+      await addDoc(collection(db, 'users', userId, 'medicationLogs'), {
+        medicationId: medication.id,
+        medicationName: medication.medicationName || medication.name,
+        takenAt: takenAt,
+        dosage: medication.dosage,
+        scheduled: medication.time
+      });
+      
+      console.log(`Recorded ${medication.medicationName || medication.name} as taken at ${takenAt.toLocaleString()}`);
+      
+      // Cancel the notification for this medication
+      await cancelMedicationNotification(medication.id);
+      
+      // Schedule next notification for tomorrow
+      await scheduleNotification(medication);
+      
+      Alert.alert(
+        "Medication Taken",
+        `You've recorded ${medication.medicationName || medication.name} as taken.`
+      );
+    } catch (error) {
+      console.error("Error recording medication as taken:", error);
+      Alert.alert("Error", "Could not record medication as taken. Please try again.");
+    }
+  };
+
+  // Fetch medications from Firestore
+  const fetchMedications = async () => {
+    try {
+      const userId = auth.currentUser ? auth.currentUser.uid : null;
+      if (!userId) {
+        console.error("No user logged in");
+        setLoading(false);
+        return;
+      }
+
+      const medicationsCollection = collection(db, 'users', userId, 'medications');
+      const medicationSnapshot = await getDocs(medicationsCollection);
+      const medicationList = medicationSnapshot.docs.map(doc => {
+        const data = doc.data();
+        const timeInMinutes = timeToMinutes(data.time);
+        return {
+          id: doc.id,
+          ...data,
+          timeOfDay: getTimeOfDay(data.time),
+          timeInMinutes: timeInMinutes
+        };
+      });
+      
+      // Sort the entire medication list by time
+      medicationList.sort((a, b) => a.timeInMinutes - b.timeInMinutes);
+      console.log("Processed medications:", medicationList); // Debug: Log processed data
+      
+      setMedications(medicationList);
+      setLoading(false);
+      
+      // Schedule notifications for all medications
+      medicationList.forEach(med => {
+        scheduleNotification(med);
+      });
+    } catch (error) {
+      console.error("Error fetching medications: ", error);
+      setLoading(false);
+    }
+  };
+
+  // Use useFocusEffect to reload data whenever the screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("Screen focused, fetching medications..."); // Debug
+      fetchMedications();
+      return () => {
+        // Do any cleanup if needed
+      };
+    }, [])
+  );
 
   // Group medications by time of day
   const groupedMedications = medications.reduce((groups, med) => {
@@ -131,40 +329,30 @@ const HomeScreen = () => {
     // Convert current time to minutes since midnight for easier comparison
     const currentTimeInMinutes = currentHour * 60 + currentMinutes;
     
-    // Define time boundaries for each period in minutes
-    const morningStart = 6 * 60;   // 6:00 AM
-    const afternoonStart = 12 * 60; // 12:00 PM
-    const eveningStart = 15 * 60;  // 3:00 PM
-    const nightStart = 20 * 60;    // 8:00 PM
-    
-    // Determine current time period
-    let currentPeriod;
-    if (currentTimeInMinutes >= morningStart && currentTimeInMinutes < afternoonStart) {
-      currentPeriod = 'Morning';
-    } else if (currentTimeInMinutes >= afternoonStart && currentTimeInMinutes < eveningStart) {
-      currentPeriod = 'Afternoon';
-    } else if (currentTimeInMinutes >= eveningStart && currentTimeInMinutes < nightStart) {
-      currentPeriod = 'Evening';
-    } else {
-      currentPeriod = 'Night';
-    }
-    
-    // Get periods in chronological order starting from current period
-    const periods = ['Morning', 'Afternoon', 'Evening', 'Night'];
-    const currentPeriodIndex = periods.indexOf(currentPeriod);
-    const orderedPeriods = [
-      ...periods.slice(currentPeriodIndex), 
-      ...periods.slice(0, currentPeriodIndex)
-    ];
-    
-    // Find the next available medication
-    for (const period of orderedPeriods) {
-      if (groupedMedications[period] && groupedMedications[period].length > 0) {
-        return {
-          medication: groupedMedications[period][0],
-          timeOfDay: period
-        };
+    // Calculate time difference for each medication
+    const medicationsWithTimeDiff = medications.map(med => {
+      const medTimeInMinutes = timeToMinutes(med.time);
+      
+      // If medication time is earlier in the day, it's for tomorrow
+      let timeDifference = medTimeInMinutes - currentTimeInMinutes;
+      if (timeDifference < 0) {
+        timeDifference += 24 * 60; // Add 24 hours (in minutes)
       }
+      
+      return {
+        ...med,
+        timeDifference
+      };
+    });
+    
+    // Sort by time difference to get the next medication first
+    const sortedMeds = [...medicationsWithTimeDiff].sort((a, b) => a.timeDifference - b.timeDifference);
+    
+    if (sortedMeds.length > 0) {
+      return {
+        medication: sortedMeds[0],
+        timeOfDay: sortedMeds[0].timeOfDay
+      };
     }
     
     return null;
@@ -187,6 +375,59 @@ const HomeScreen = () => {
 
   const navigateToMedicationDetail = (medicationId) => {
     navigation.navigate('MedicationDetail', { medicationId });
+  };
+
+  // Handle medication card press from UpNext section
+  const handleUpNextMedicationPress = (medication) => {
+    Alert.alert(
+      "Medication Reminder",
+      `Have you taken your ${medication.medicationName || medication.name}?`,
+      [
+        {
+          text: "Not Yet",
+          style: "cancel"
+        },
+        {
+          text: "Yes, Taken",
+          onPress: () => recordMedicationTaken(medication)
+        }
+      ]
+    );
+  };
+
+  // Render a medication card for UpNext
+  const renderMedicationCard = (medData) => {
+    if (!medData) return null;
+    
+    return (
+      <View>
+        <Text style={styles.nextMedicationPeriod}>{medData.timeOfDay}</Text>
+        <TouchableOpacity 
+          style={styles.medicationCard}
+          onPress={() => handleUpNextMedicationPress(medData.medication)}
+        >
+          <View style={styles.medicationHeader}>
+            <Text style={styles.medicationName}>{medData.medication.medicationName || medData.medication.name}</Text>
+            <Text style={styles.medicationDosage}>{medData.medication.dosage}</Text>
+          </View>
+          
+          <View style={styles.medicationDetailsContainer}>
+            <View style={styles.medicationDetailItem}>
+              <Text style={styles.medicationDetailLabel}>Time</Text>
+              <Text style={styles.medicationDetailText}>{medData.medication.time || '9:00 AM'}</Text>
+            </View>
+            <View style={styles.medicationDetailItem}>
+              <Text style={styles.medicationDetailLabel}>Quantity</Text>
+              <Text style={styles.medicationDetailText}>{medData.medication.quantity || '1 Capsule'}</Text>
+            </View>
+            <View style={styles.medicationDetailItem}>
+              <Text style={styles.medicationDetailLabel}>Instructions</Text>
+              <Text style={styles.medicationDetailText}>{medData.medication.mealOption || 'Before Meal'}</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   return (
@@ -242,97 +483,128 @@ const HomeScreen = () => {
         </View>
       ) : (
         <>
-          {/* Next Medication to Take Section */}
-          {activeTab === 'upNext' && (
-            <View style={styles.nextMedicationSection}>
+          {activeTab === 'upNext' ? (
+            <>
+              <View style={styles.nextMedicationSection}>
+                {/* Next Medication to Take Section */}
+                <Text style={styles.nextMedicationTitle}>Up Next</Text>
+                {(() => {
+                  const nextMed = getNextMedication();
+                  if (nextMed) {
+                    return renderMedicationCard(nextMed);
+                  } else {
+                    return (
+                      <View style={styles.noUpcomingContainer}>
+                        <Text style={styles.noUpcomingText}>No upcoming medications scheduled</Text>
+                      </View>
+                    );
+                  }
+                })()}
+              </View>
               
+              <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
+                <Text style={styles.buttonText}>Add More Medications</Text>
+              </TouchableOpacity>
               
-              {(() => {
-                const nextMed = getNextMedication();
-                if (nextMed) {
-                  return (
-                    <View>
-                      <Text style={styles.nextMedicationPeriod}>{nextMed.timeOfDay}</Text>
-                      <TouchableOpacity 
-                        style={styles.medicationCard}
-                        onPress={() => navigateToMedicationDetail(nextMed.medication.id)}
-                      >
-                        <View style={styles.medicationHeader}>
-                          <Text style={styles.medicationName}>{nextMed.medication.name}</Text>
-                          <Text style={styles.medicationDosage}>{nextMed.medication.dosage}</Text>
-                        </View>
-                        
-                        <View style={styles.medicationDetailsContainer}>
-                          <View style={styles.medicationDetailItem}>
-                            <Text style={styles.medicationDetailLabel}>Time</Text>
-                            <Text style={styles.medicationDetailText}>{nextMed.medication.time || '9:00 AM'}</Text>
-                          </View>
-                          <View style={styles.medicationDetailItem}>
-                            <Text style={styles.medicationDetailLabel}>Quantity</Text>
-                            <Text style={styles.medicationDetailText}>{nextMed.medication.quantity || '1 Capsule'}</Text>
-                          </View>
-                          <View style={styles.medicationDetailItem}>
-                            <Text style={styles.medicationDetailLabel}>Instructions</Text>
-                            <Text style={styles.medicationDetailText}>{nextMed.medication.mealOption || 'Before Meal'}</Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                } else {
-                  return (
-                    <View style={styles.noUpcomingContainer}>
-                      <Text style={styles.noUpcomingText}>No upcoming medications scheduled</Text>
-                    </View>
-                  );
-                }
-              })()}
-            </View>
-          )}
+              {/* Track Your Medication */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Track Your Medication</Text>
+                <Text style={styles.cardDescription}>
+                  Why it's Important to keep up with what you're taking
+                </Text>
+                <TouchableOpacity style={styles.readMoreButton}>
+                  <Text style={styles.readMoreText}>Read about it</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* Display medications based on active tab */}
-          
-          
-          <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
-            <Text style={styles.buttonText}>Add More Medications</Text>
-          </TouchableOpacity>
+              {/* MediVision Section */}
+              <Text style={styles.sectionTitle}>MediVision</Text>
+              <Text style={styles.sectionDescription}>
+                Try out out MediVision where it gives information from the package of the medication
+              </Text>
+              
+              <TouchableOpacity 
+                style={styles.mediVisionButton} 
+                onPress={navigateToMediVision}
+              >
+                <Text style={styles.buttonText}>MediVision</Text>
+              </TouchableOpacity>
+
+              {/* Medication Log Section */}
+              <Text style={styles.sectionTitle}>Medication Log</Text>
+
+              {/* Daily Logs */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Daily Logs</Text>
+                <Text style={styles.cardDescription}>
+                  Log the medications you have taken to keep track of it
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              {/* ALL TAB: Only show medications and MediVision */}
+              <View>
+                {/* Display all medications grouped by time of day */}
+                {timeOrder.map(timeOfDay => {
+                  if (groupedMedications[timeOfDay] && groupedMedications[timeOfDay].length > 0) {
+                    return (
+                      <View key={timeOfDay} style={styles.timeSection}>
+                        <Text style={styles.timeSectionTitle}>{timeOfDay}</Text>
+                        {groupedMedications[timeOfDay].map(med => (
+                          <TouchableOpacity 
+                            key={med.id} 
+                            style={styles.medicationCard}
+                            onPress={() => navigateToMedicationDetail(med.id)}
+                          >
+                            <View style={styles.medicationHeader}>
+                              <Text style={styles.medicationName}>{med.medicationName || med.name}</Text>
+                              <Text style={styles.medicationDosage}>{med.dosage}</Text>
+                            </View>
+                            
+                            <View style={styles.medicationDetailsContainer}>
+                              <View style={styles.medicationDetailItem}>
+                                <Text style={styles.medicationDetailLabel}>Time</Text>
+                                <Text style={styles.medicationDetailText}>{med.time || '9:00 AM'}</Text>
+                              </View>
+                              <View style={styles.medicationDetailItem}>
+                                <Text style={styles.medicationDetailLabel}>Quantity</Text>
+                                <Text style={styles.medicationDetailText}>{med.quantity || '1 Capsule'}</Text>
+                              </View>
+                              <View style={styles.medicationDetailItem}>
+                                <Text style={styles.medicationDetailLabel}>Instructions</Text>
+                                <Text style={styles.medicationDetailText}>{med.mealOption || 'Before Meal'}</Text>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    );
+                  }
+                  return null;
+                })}
+              </View>
+              
+              <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
+                <Text style={styles.buttonText}>Add More Medications</Text>
+              </TouchableOpacity>
+              
+              {/* MediVision Section - Only kept this section in the "All" tab */}
+              <Text style={styles.sectionTitle}>MediVision</Text>
+              <Text style={styles.sectionDescription}>
+                Try out out MediVision where it gives information from the package of the medication
+              </Text>
+              
+              <TouchableOpacity 
+                style={styles.mediVisionButton} 
+                onPress={navigateToMediVision}
+              >
+                <Text style={styles.buttonText}>MediVision</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </>
       )}
-
-      {/* Track Your Medication */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Track Your Medication</Text>
-        <Text style={styles.cardDescription}>
-          Why it's Important to keep up with what you're taking
-        </Text>
-        <TouchableOpacity style={styles.readMoreButton}>
-          <Text style={styles.readMoreText}>Read about it</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Medication Log Section */}
-      <Text style={styles.sectionTitle}>Medication Log</Text>
-
-      {/* Daily Logs */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Daily Logs</Text>
-        <Text style={styles.cardDescription}>
-          Log the medications you have taken to keep track of it
-        </Text>
-      </View>
-
-      {/* MediVision Section */}
-      <Text style={styles.sectionTitle}>MediVision</Text>
-      <Text style={styles.sectionDescription}>
-        Try out out MediVision where it gives information from the package of the medication
-      </Text>
-      
-      <TouchableOpacity 
-        style={styles.mediVisionButton} 
-        onPress={navigateToMediVision}
-      >
-        <Text style={styles.buttonText}>MediVision</Text>
-      </TouchableOpacity>
 
       {/* Bottom padding */}
       <View style={styles.bottomPadding} />
@@ -389,7 +661,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    marginRight: 10,
+    marginRight: 20, // Increased from 10 to 20 for more space between tabs
   },
   activeTabText: {
     color: 'white',
@@ -400,6 +672,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingVertical: 10,
     paddingHorizontal: 20,
+    marginRight: 20, // Added margin here too for consistency
   },
   inactiveTabText: {
     color: 'black',
@@ -555,4 +828,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default HomeScreen
+export default HomeScreen;

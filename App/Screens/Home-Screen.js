@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { collection, getDocs, doc, setDoc, addDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, addDoc, getDoc, query, where, orderBy, limit } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import * as Notifications from 'expo-notifications';
 
@@ -19,6 +19,7 @@ const HomeScreen = () => {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('upNext');
+  const [medicationLogs, setMedicationLogs] = useState({});
   
   const currentDate = new Date();
   const formattedDate = `${currentDate.getDate()}${getDaySuffix(currentDate.getDate())} ${getMonthName(currentDate.getMonth())} ${currentDate.getFullYear()}`;
@@ -47,6 +48,13 @@ const HomeScreen = () => {
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     return months[month];
   }
+
+  // Get today's date at midnight for comparing logs
+  const getTodayAtMidnight = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  };
 
   const getTimeOfDay = (timeString) => {
     if (!timeString) return 'Other';
@@ -201,9 +209,12 @@ const HomeScreen = () => {
       // Save notification ID to Firestore for reference
       const userId = auth.currentUser.uid;
       const notificationRef = doc(db, 'users', userId, 'medications', medication.id);
-      await setDoc(notificationRef, { notificationId: notificationId }, { merge: true });
+      await setDoc(notificationRef, { 
+        notificationId: notificationId,
+        notifyMinutesBefore: notifyMinutesBefore
+      }, { merge: true });
       
-      console.log(`Notification scheduled for ${medication.medicationName || medication.name} at ${notificationDate.toLocaleTimeString()}`);
+      console.log(`Notification scheduled for ${medication.medicationName || medication.name} at ${notificationDate.toLocaleTimeString()} (${notifyMinutesBefore} min before)`);
     } catch (error) {
       console.error("Error scheduling notification:", error);
     }
@@ -231,7 +242,7 @@ const HomeScreen = () => {
       const takenAt = new Date();
       
       // Add to medication logs collection
-      await addDoc(collection(db, 'users', userId, 'medicationLogs'), {
+      const logRef = await addDoc(collection(db, 'users', userId, 'medicationLogs'), {
         medicationId: medication.id,
         medicationName: medication.medicationName || medication.name,
         takenAt: takenAt,
@@ -240,6 +251,16 @@ const HomeScreen = () => {
       });
       
       console.log(`Recorded ${medication.medicationName || medication.name} as taken at ${takenAt.toLocaleString()}`);
+      
+      // Update our local state to reflect the change
+      setMedicationLogs(prevLogs => ({
+        ...prevLogs,
+        [medication.id]: {
+          ...prevLogs[medication.id],
+          takenToday: true,
+          lastTakenAt: takenAt
+        }
+      }));
       
       // Cancel the notification for this medication
       await cancelMedicationNotification(medication.id);
@@ -257,6 +278,52 @@ const HomeScreen = () => {
     }
   };
 
+  // Fetch medication logs to determine which medications have been taken today
+  const fetchMedicationLogs = async () => {
+    try {
+      const userId = auth.currentUser ? auth.currentUser.uid : null;
+      if (!userId) return;
+
+      const today = getTodayAtMidnight();
+      const logsCollection = collection(db, 'users', userId, 'medicationLogs');
+      
+      // Get logs for today
+      const todayLogs = await getDocs(logsCollection);
+      
+      
+      const newMedicationLogs = {};
+      
+      todayLogs.docs.forEach(doc => {
+        const logData = doc.data();
+        const logDate = logData.takenAt.toDate ? logData.takenAt.toDate() : new Date(logData.takenAt);
+        
+        
+        const isTodayLog = logDate >= today;
+        
+        
+        if (!newMedicationLogs[logData.medicationId]) {
+          newMedicationLogs[logData.medicationId] = {
+            takenToday: isTodayLog,
+            lastTakenAt: logDate
+          };
+        } else if (isTodayLog) {
+
+          newMedicationLogs[logData.medicationId].takenToday = true;
+          
+          
+          if (logDate > newMedicationLogs[logData.medicationId].lastTakenAt) {
+            newMedicationLogs[logData.medicationId].lastTakenAt = logDate;
+          }
+        }
+      });
+      
+      console.log("Medication logs:", newMedicationLogs);
+      setMedicationLogs(newMedicationLogs);
+    } catch (error) {
+      console.error("Error fetching medication logs:", error);
+    }
+  };
+
   // Fetch medications from Firestore
   const fetchMedications = async () => {
     try {
@@ -266,6 +333,9 @@ const HomeScreen = () => {
         setLoading(false);
         return;
       }
+
+      
+      await fetchMedicationLogs();
 
       const medicationsCollection = collection(db, 'users', userId, 'medications');
       const medicationSnapshot = await getDocs(medicationsCollection);
@@ -280,9 +350,9 @@ const HomeScreen = () => {
         };
       });
       
-      // Sort the entire medication list by time
+ 
       medicationList.sort((a, b) => a.timeInMinutes - b.timeInMinutes);
-      console.log("Processed medications:", medicationList); // Debug: Log processed data
+      console.log("Processed medications:", medicationList); 
       
       setMedications(medicationList);
       setLoading(false);
@@ -297,13 +367,13 @@ const HomeScreen = () => {
     }
   };
 
-  // Use useFocusEffect to reload data whenever the screen comes into focus
+
   useFocusEffect(
     React.useCallback(() => {
       console.log("Screen focused, fetching medications..."); // Debug
       fetchMedications();
       return () => {
-        // Do any cleanup if needed
+
       };
     }, [])
   );
@@ -320,32 +390,47 @@ const HomeScreen = () => {
 
   const timeOrder = ['Morning', 'Afternoon', 'Evening', 'Night', 'Other'];
 
-  // Function to get the next medication based on current time
+ 
   const getNextMedication = () => {
     const currentDate = new Date();
     const currentHour = currentDate.getHours();
     const currentMinutes = currentDate.getMinutes();
     
-    // Convert current time to minutes since midnight for easier comparison
+
     const currentTimeInMinutes = currentHour * 60 + currentMinutes;
     
-    // Calculate time difference for each medication
+
     const medicationsWithTimeDiff = medications.map(med => {
       const medTimeInMinutes = timeToMinutes(med.time);
       
-      // If medication time is earlier in the day, it's for tomorrow
+   
       let timeDifference = medTimeInMinutes - currentTimeInMinutes;
       if (timeDifference < 0) {
-        timeDifference += 24 * 60; // Add 24 hours (in minutes)
+        timeDifference += 24 * 60; 
       }
+      
+      // Check if this medication has been taken today
+      const isTaken = medicationLogs[med.id]?.takenToday || false;
       
       return {
         ...med,
-        timeDifference
+        timeDifference,
+        isTaken
       };
     });
+   
+    const nextUntakenMeds = medicationsWithTimeDiff
+      .filter(med => !med.isTaken)
+      .sort((a, b) => a.timeDifference - b.timeDifference);
     
-    // Sort by time difference to get the next medication first
+    if (nextUntakenMeds.length > 0) {
+      return {
+        medication: nextUntakenMeds[0],
+        timeOfDay: nextUntakenMeds[0].timeOfDay
+      };
+    }
+    
+    // If all are taken, show the next one in the schedule 
     const sortedMeds = [...medicationsWithTimeDiff].sort((a, b) => a.timeDifference - b.timeDifference);
     
     if (sortedMeds.length > 0) {
@@ -377,27 +462,43 @@ const HomeScreen = () => {
     navigation.navigate('MedicationDetail', { medicationId });
   };
 
-  // Handle medication card press from UpNext section
   const handleUpNextMedicationPress = (medication) => {
-    Alert.alert(
-      "Medication Reminder",
-      `Have you taken your ${medication.medicationName || medication.name}?`,
-      [
-        {
-          text: "Not Yet",
-          style: "cancel"
-        },
-        {
-          text: "Yes, Taken",
-          onPress: () => recordMedicationTaken(medication)
-        }
-      ]
-    );
+   
+    if (medicationLogs[medication.id]?.takenToday) {
+      Alert.alert(
+        "Already Taken",
+        `You've already recorded ${medication.medicationName || medication.name} as taken today.`,
+        [{ text: "OK" }]
+      );
+    } else {
+      
+      Alert.alert(
+        "Medication Reminder",
+        `Have you taken your ${medication.medicationName || medication.name}?`,
+        [
+          {
+            text: "Not Yet",
+            style: "cancel"
+          },
+          {
+            text: "Yes, Taken",
+            onPress: () => recordMedicationTaken(medication)
+          }
+        ]
+      );
+    }
   };
 
-  // Render a medication card for UpNext
+ 
+  const isMedicationTaken = (medicationId) => {
+    return medicationLogs[medicationId]?.takenToday || false;
+  };
+
+
   const renderMedicationCard = (medData) => {
     if (!medData) return null;
+    
+    const taken = isMedicationTaken(medData.medication.id);
     
     return (
       <View>
@@ -408,21 +509,27 @@ const HomeScreen = () => {
         >
           <View style={styles.medicationHeader}>
             <Text style={styles.medicationName}>{medData.medication.medicationName || medData.medication.name}</Text>
-            <Text style={styles.medicationDosage}>{medData.medication.dosage}</Text>
+            <Text style={[
+              styles.medicationStatus, 
+              taken ? styles.takenStatus : styles.notTakenStatus
+            ]}>
+              {taken ? "Taken" : "Not Taken"}
+            </Text>
+            
           </View>
           
           <View style={styles.medicationDetailsContainer}>
             <View style={styles.medicationDetailItem}>
               <Text style={styles.medicationDetailLabel}>Time</Text>
-              <Text style={styles.medicationDetailText}>{medData.medication.time || '9:00 AM'}</Text>
+              <Text style={styles.medicationDetailText}>{medData.medication.time}</Text>
             </View>
             <View style={styles.medicationDetailItem}>
               <Text style={styles.medicationDetailLabel}>Quantity</Text>
-              <Text style={styles.medicationDetailText}>{medData.medication.quantity || '1 Capsule'}</Text>
+              <Text style={styles.medicationDetailText}>{medData.medication.dosage}</Text>
             </View>
             <View style={styles.medicationDetailItem}>
               <Text style={styles.medicationDetailLabel}>Instructions</Text>
-              <Text style={styles.medicationDetailText}>{medData.medication.mealOption || 'Before Meal'}</Text>
+              <Text style={styles.medicationDetailText}>{medData.medication.mealOption}</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -486,8 +593,7 @@ const HomeScreen = () => {
           {activeTab === 'upNext' ? (
             <>
               <View style={styles.nextMedicationSection}>
-                {/* Next Medication to Take Section */}
-                <Text style={styles.nextMedicationTitle}>Up Next</Text>
+               
                 {(() => {
                   const nextMed = getNextMedication();
                   if (nextMed) {
@@ -505,6 +611,19 @@ const HomeScreen = () => {
               <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
                 <Text style={styles.buttonText}>Add More Medications</Text>
               </TouchableOpacity>
+
+                {/* MediVision Section */}
+                <Text style={styles.sectionTitle}>MediVision</Text>
+              <Text style={styles.sectionDescription}>
+                Try out out MediVision where it gives information from the package of the medication
+              </Text>
+              
+              <TouchableOpacity 
+                style={styles.mediVisionButton} 
+                onPress={navigateToMediVision}
+              >
+                <Text style={styles.buttonText}>MediVision</Text>
+              </TouchableOpacity>
               
               {/* Track Your Medication */}
               <View style={styles.card}>
@@ -516,19 +635,6 @@ const HomeScreen = () => {
                   <Text style={styles.readMoreText}>Read about it</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* MediVision Section */}
-              <Text style={styles.sectionTitle}>MediVision</Text>
-              <Text style={styles.sectionDescription}>
-                Try out out MediVision where it gives information from the package of the medication
-              </Text>
-              
-              <TouchableOpacity 
-                style={styles.mediVisionButton} 
-                onPress={navigateToMediVision}
-              >
-                <Text style={styles.buttonText}>MediVision</Text>
-              </TouchableOpacity>
 
               {/* Medication Log Section */}
               <Text style={styles.sectionTitle}>Medication Log</Text>
@@ -543,7 +649,7 @@ const HomeScreen = () => {
             </>
           ) : (
             <>
-              {/* ALL TAB: Only show medications and MediVision */}
+              {/* ALL TAB */}
               <View>
                 {/* Display all medications grouped by time of day */}
                 {timeOrder.map(timeOfDay => {
@@ -551,33 +657,45 @@ const HomeScreen = () => {
                     return (
                       <View key={timeOfDay} style={styles.timeSection}>
                         <Text style={styles.timeSectionTitle}>{timeOfDay}</Text>
-                        {groupedMedications[timeOfDay].map(med => (
-                          <TouchableOpacity 
-                            key={med.id} 
-                            style={styles.medicationCard}
-                            onPress={() => navigateToMedicationDetail(med.id)}
-                          >
-                            <View style={styles.medicationHeader}>
-                              <Text style={styles.medicationName}>{med.medicationName || med.name}</Text>
-                              <Text style={styles.medicationDosage}>{med.dosage}</Text>
-                            </View>
-                            
-                            <View style={styles.medicationDetailsContainer}>
-                              <View style={styles.medicationDetailItem}>
-                                <Text style={styles.medicationDetailLabel}>Time</Text>
-                                <Text style={styles.medicationDetailText}>{med.time || '9:00 AM'}</Text>
+                        {groupedMedications[timeOfDay].map(med => {
+                          const taken = isMedicationTaken(med.id);
+                          return (
+                            <TouchableOpacity 
+                              key={med.id} 
+                              style={styles.medicationCard}
+                              onPress={() => taken ? 
+                                navigateToMedicationDetail(med.id) : 
+                                handleUpNextMedicationPress(med)
+                              }
+                            >
+                              <View style={styles.medicationHeader}>
+                                <Text style={styles.medicationName}>{med.medicationName || med.name}</Text>
+                                <Text style={[
+                                  styles.medicationStatus, 
+                                  taken ? styles.takenStatus : styles.notTakenStatus
+                                ]}>
+                                  {taken ? "Taken" : "Not Taken"}
+                                </Text>
+                             
                               </View>
-                              <View style={styles.medicationDetailItem}>
-                                <Text style={styles.medicationDetailLabel}>Quantity</Text>
-                                <Text style={styles.medicationDetailText}>{med.quantity || '1 Capsule'}</Text>
+                              
+                              <View style={styles.medicationDetailsContainer}>
+                                <View style={styles.medicationDetailItem}>
+                                  <Text style={styles.medicationDetailLabel}>Time</Text>
+                                  <Text style={styles.medicationDetailText}>{med.time}</Text>
+                                </View>
+                                <View style={styles.medicationDetailItem}>
+                                  <Text style={styles.medicationDetailLabel}>Quantity</Text>
+                                  <Text style={styles.medicationDetailText}>{med.dosage}</Text>
+                                </View>
+                                <View style={styles.medicationDetailItem}>
+                                  <Text style={styles.medicationDetailLabel}>Instructions</Text>
+                                  <Text style={styles.medicationDetailText}>{med.mealOption}</Text>
+                                </View>
                               </View>
-                              <View style={styles.medicationDetailItem}>
-                                <Text style={styles.medicationDetailLabel}>Instructions</Text>
-                                <Text style={styles.medicationDetailText}>{med.mealOption || 'Before Meal'}</Text>
-                              </View>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     );
                   }
@@ -589,24 +707,13 @@ const HomeScreen = () => {
                 <Text style={styles.buttonText}>Add More Medications</Text>
               </TouchableOpacity>
               
-              {/* MediVision Section - Only kept this section in the "All" tab */}
-              <Text style={styles.sectionTitle}>MediVision</Text>
-              <Text style={styles.sectionDescription}>
-                Try out out MediVision where it gives information from the package of the medication
-              </Text>
-              
-              <TouchableOpacity 
-                style={styles.mediVisionButton} 
-                onPress={navigateToMediVision}
-              >
-                <Text style={styles.buttonText}>MediVision</Text>
-              </TouchableOpacity>
+             
             </>
           )}
         </>
       )}
 
-      {/* Bottom padding */}
+     
       <View style={styles.bottomPadding} />
     </ScrollView>
   );
@@ -643,7 +750,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   dateSection: {
-    marginVertical: 15,
+    marginVertical: 10,
   },
   todayText: {
     fontSize: 24,
@@ -661,7 +768,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    marginRight: 20, // Increased from 10 to 20 for more space between tabs
+    marginRight: 10, 
   },
   activeTabText: {
     color: 'white',
@@ -672,7 +779,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    marginRight: 20, // Added margin here too for consistency
+    marginRight: 10, 
   },
   inactiveTabText: {
     color: 'black',
@@ -742,7 +849,6 @@ const styles = StyleSheet.create({
     height: 30,
   },
   
-  // Medication card styles - using exact styles from MedTrack
   timeSection: {
     marginVertical: 10,
     marginBottom: 20,

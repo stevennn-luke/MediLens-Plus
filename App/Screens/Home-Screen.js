@@ -161,64 +161,69 @@ const HomeScreen = () => {
     return hours * 60 + minutes;
   };
 
-  // Schedule notification for a medication
-  const scheduleNotification = async (medication) => {
-    try {
-      const timeInMinutes = timeToMinutes(medication.time);
-      if (timeInMinutes === -1) return;
-      
-      // Get notify setting, default to 15 minutes if not specified
-      let notifyMinutesBefore = 15;
-      
-      if (medication.notify && medication.notify.trim() !== '') {
-        // Try to parse the notify time
-        const notifyMatch = medication.notify.match(/(\d+)\s*(?:minute|min|m)?s?/i);
-        if (notifyMatch && notifyMatch[1]) {
-          notifyMinutesBefore = parseInt(notifyMatch[1]);
-        }
+ // Schedule notification for a medication
+const scheduleNotification = async (medication) => {
+  try {
+    const timeInMinutes = timeToMinutes(medication.time);
+    if (timeInMinutes === -1) return;
+
+    // Get notify setting, default to 15 minutes if not specified
+    let notifyMinutesBefore = 15;
+    if (medication.notify && medication.notify.trim() !== '') {
+      // Parse the notify time from firebase
+      const notifyMatch = medication.notify.match(/(\d+)\s*(?:minute|min|m)?s?/i);
+      if (notifyMatch && notifyMatch[1]) {
+        notifyMinutesBefore = parseInt(notifyMatch[1]);
       }
-      
-      // Calculate notification time
-      const now = new Date();
-      let notificationDate = new Date();
-      let notificationMinutes = timeInMinutes - notifyMinutesBefore;
-      
-      // If the notification time has already passed today, schedule for tomorrow
-      if (notificationMinutes < (now.getHours() * 60 + now.getMinutes())) {
-        notificationDate.setDate(notificationDate.getDate() + 1);
-      }
-      
-      // Set the correct time for notification
-      notificationDate.setHours(Math.floor(notificationMinutes / 60));
-      notificationDate.setMinutes(notificationMinutes % 60);
-      notificationDate.setSeconds(0);
-      
-      // Cancel any existing notifications for this medication
-      await cancelMedicationNotification(medication.id);
-      
-      // Schedule the notification
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Medication Reminder',
-          body: `Time to take ${medication.medicationName || medication.name} in ${notifyMinutesBefore} minutes`,
-          data: { medicationId: medication.id },
-        },
-        trigger: notificationDate,
-      });
-      
-      // Save notification ID to Firestore for reference
-      const userId = auth.currentUser.uid;
-      const notificationRef = doc(db, 'users', userId, 'medications', medication.id);
-      await setDoc(notificationRef, { 
-        notificationId: notificationId,
-        notifyMinutesBefore: notifyMinutesBefore
-      }, { merge: true });
-      
-      console.log(`Notification scheduled for ${medication.medicationName || medication.name} at ${notificationDate.toLocaleTimeString()} (${notifyMinutesBefore} min before)`);
-    } catch (error) {
-      console.error("Error scheduling notification:", error);
     }
-  };
+
+    // Calculate notification time
+    const now = new Date();
+    let notificationDate = new Date();
+    
+    // Calculate target medication time in minutes since midnight
+    const medicationHours = Math.floor(timeInMinutes / 60);
+    const medicationMinutes = timeInMinutes % 60;
+    
+    // Set the medication time
+    notificationDate.setHours(medicationHours);
+    notificationDate.setMinutes(medicationMinutes);
+    notificationDate.setSeconds(0);
+    
+    // Now subtract the notification time
+    notificationDate = new Date(notificationDate.getTime() - (notifyMinutesBefore * 60 * 1000));
+    
+    // If the notification time has already passed today, schedule for tomorrow
+    if (notificationDate.getTime() < now.getTime()) {
+      notificationDate.setDate(notificationDate.getDate() + 1);
+    }
+
+    // Cancel any existing notifications for this medication
+    await cancelMedicationNotification(medication.id);
+    
+    // Schedule the notification
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Medication Reminder',
+        body: `Time to take ${medication.medicationName || medication.name} in ${notifyMinutesBefore} minutes`,
+        data: { medicationId: medication.id },
+      },
+      trigger: notificationDate,
+    });
+
+    // Save notification ID to Firestore for reference
+    const userId = auth.currentUser.uid;
+    const notificationRef = doc(db, 'users', userId, 'medications', medication.id);
+    await setDoc(notificationRef, {
+      notificationId: notificationId,
+      notifyMinutesBefore: notifyMinutesBefore
+    }, { merge: true });
+
+    console.log(`Notification scheduled for ${medication.medicationName || medication.name} at ${notificationDate.toLocaleTimeString()} (${notifyMinutesBefore} min before dose time: ${medication.time})`);
+  } catch (error) {
+    console.error("Error scheduling notification:", error);
+  }
+};
 
   // Cancel notification for a medication
   const cancelMedicationNotification = async (medicationId) => {

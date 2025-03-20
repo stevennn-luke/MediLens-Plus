@@ -542,6 +542,48 @@ const scheduleNotification = async (medication) => {
     );
   };
 
+  // Render the additional sections that should always appear in Up Next tab
+  const renderAdditionalSections = () => {
+    return (
+      <>
+        {/* MediVision Section */}
+        <Text style={styles.sectionTitle}>MediVision</Text>
+        <Text style={styles.sectionDescription}>
+          Try out out MediVision where it gives information from the package of the medication
+        </Text>
+        
+        <TouchableOpacity 
+          style={styles.mediVisionButton} 
+          onPress={navigateToMediVision}
+        >
+          <Text style={styles.buttonText}>MediVision</Text>
+        </TouchableOpacity>
+        
+        {/* Track Your Medication */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Track Your Medication</Text>
+          <Text style={styles.cardDescription}>
+            Why it's Important to keep up with what you're taking
+          </Text>
+          <TouchableOpacity style={styles.readMoreButton}>
+            <Text style={styles.readMoreText}>Read about it</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Medication Log Section */}
+        <Text style={styles.sectionTitle}>Medication Log</Text>
+
+        {/* Daily Logs */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Daily Logs</Text>
+          <Text style={styles.cardDescription}>
+            Log the medications you have taken to keep track of it
+          </Text>
+        </View>
+      </>
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -583,136 +625,117 @@ const scheduleNotification = async (medication) => {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading your medications...</Text>
         </View>
-      ) : medications.length === 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Set Up Medication</Text>
-          <Text style={styles.cardDescription}>
-            All your medications in one place, Set your schedule, check for interactions, and track what you take.
-          </Text>
-          <TouchableOpacity style={styles.blackButton} onPress={handleAdd}>
-            <Text style={styles.buttonText}>Add a Medication</Text>
-          </TouchableOpacity>
-        </View>
       ) : (
         <>
           {activeTab === 'upNext' ? (
             <>
-              <View style={styles.nextMedicationSection}>
-               
-                {(() => {
-                  const nextMed = getNextMedication();
-                  if (nextMed) {
-                    return renderMedicationCard(nextMed);
-                  } else {
-                    return (
-                      <View style={styles.noUpcomingContainer}>
-                        <Text style={styles.noUpcomingText}>No upcoming medications scheduled</Text>
-                      </View>
-                    );
-                  }
-                })()}
-              </View>
+              {medications.length === 0 ? (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Set Up Medication</Text>
+                  <Text style={styles.cardDescription}>
+                    All your medications in one place, Set your schedule, check for interactions, and track what you take.
+                  </Text>
+                  <TouchableOpacity style={styles.blackButton} onPress={handleAdd}>
+                    <Text style={styles.buttonText}>Add a Medication</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.nextMedicationSection}>
+                    {(() => {
+                      const nextMed = getNextMedication();
+                      if (nextMed) {
+                        return renderMedicationCard(nextMed);
+                      } else {
+                        return (
+                          <View style={styles.noUpcomingContainer}>
+                            <Text style={styles.noUpcomingText}>No upcoming medications scheduled</Text>
+                          </View>
+                        );
+                      }
+                    })()}
+                  </View>
+                  
+                  <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
+                    <Text style={styles.buttonText}>Add More Medications</Text>
+                  </TouchableOpacity>
+                </>
+              )}
               
-              <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
-                <Text style={styles.buttonText}>Add More Medications</Text>
-              </TouchableOpacity>
-
-                {/* MediVision Section */}
-                <Text style={styles.sectionTitle}>MediVision</Text>
-              <Text style={styles.sectionDescription}>
-                Try out out MediVision where it gives information from the package of the medication
-              </Text>
-              
-              <TouchableOpacity 
-                style={styles.mediVisionButton} 
-                onPress={navigateToMediVision}
-              >
-                <Text style={styles.buttonText}>MediVision</Text>
-              </TouchableOpacity>
-              
-              {/* Track Your Medication */}
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Track Your Medication</Text>
-                <Text style={styles.cardDescription}>
-                  Why it's Important to keep up with what you're taking
-                </Text>
-                <TouchableOpacity style={styles.readMoreButton}>
-                  <Text style={styles.readMoreText}>Read about it</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Medication Log Section */}
-              <Text style={styles.sectionTitle}>Medication Log</Text>
-
-              {/* Daily Logs */}
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Daily Logs</Text>
-                <Text style={styles.cardDescription}>
-                  Log the medications you have taken to keep track of it
-                </Text>
-              </View>
+              {/* Always show these sections in Up Next tab, regardless of medication status */}
+              {renderAdditionalSections()}
             </>
           ) : (
+            /* ALL TAB */
             <>
-              {/* ALL TAB */}
-              <View>
-                {/* Display all medications grouped by time of day */}
-                {timeOrder.map(timeOfDay => {
-                  if (groupedMedications[timeOfDay] && groupedMedications[timeOfDay].length > 0) {
-                    return (
-                      <View key={timeOfDay} style={styles.timeSection}>
-                        <Text style={styles.timeSectionTitle}>{timeOfDay}</Text>
-                        {groupedMedications[timeOfDay].map(med => {
-                          const taken = isMedicationTaken(med.id);
-                          return (
-                            <TouchableOpacity 
-                              key={med.id} 
-                              style={styles.medicationCard}
-                              onPress={() => taken ? 
-                                navigateToMedicationDetail(med.id) : 
-                                handleUpNextMedicationPress(med)
-                              }
-                            >
-                              <View style={styles.medicationHeader}>
-                                <Text style={styles.medicationName}>{med.medicationName || med.name}</Text>
-                                <Text style={[
-                                  styles.medicationStatus, 
-                                  taken ? styles.takenStatus : styles.notTakenStatus
-                                ]}>
-                                  {taken ? "Taken" : "Not Taken"}
-                                </Text>
-                             
-                              </View>
+              {medications.length === 0 ? (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Set Up Medication</Text>
+                  <Text style={styles.cardDescription}>
+                    All your medications in one place, Set your schedule, check for interactions, and track what you take.
+                  </Text>
+                  <TouchableOpacity style={styles.blackButton} onPress={handleAdd}>
+                    <Text style={styles.buttonText}>Add a Medication</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  {/* Display all medications grouped by time of day */}
+                  {timeOrder.map(timeOfDay => {
+                    if (groupedMedications[timeOfDay] && groupedMedications[timeOfDay].length > 0) {
+                      return (
+                        <View key={timeOfDay} style={styles.timeSection}>
+                          <Text style={styles.timeSectionTitle}>{timeOfDay}</Text>
+                          {groupedMedications[timeOfDay].map(med => {
+                            const taken = isMedicationTaken(med.id);
+                            return (
+                              <TouchableOpacity 
+                                key={med.id} 
+                                style={styles.medicationCard}
+                                onPress={() => taken ? 
+                                  navigateToMedicationDetail(med.id) : 
+                                  handleUpNextMedicationPress(med)
+                                }
+                              >
+                                <View style={styles.medicationHeader}>
+                                  <Text style={styles.medicationName}>{med.medicationName || med.name}</Text>
+                                  <Text style={[
+                                    styles.medicationStatus, 
+                                    taken ? styles.takenStatus : styles.notTakenStatus
+                                  ]}>
+                                    {taken ? "Taken" : "Not Taken"}
+                                  </Text>
                               
-                              <View style={styles.medicationDetailsContainer}>
-                                <View style={styles.medicationDetailItem}>
-                                  <Text style={styles.medicationDetailLabel}>Time</Text>
-                                  <Text style={styles.medicationDetailText}>{med.time}</Text>
                                 </View>
-                                <View style={styles.medicationDetailItem}>
-                                  <Text style={styles.medicationDetailLabel}>Quantity</Text>
-                                  <Text style={styles.medicationDetailText}>{med.dosage}</Text>
+                                
+                                <View style={styles.medicationDetailsContainer}>
+                                  <View style={styles.medicationDetailItem}>
+                                    <Text style={styles.medicationDetailLabel}>Time</Text>
+                                    <Text style={styles.medicationDetailText}>{med.time}</Text>
+                                  </View>
+                                  <View style={styles.medicationDetailItem}>
+                                    <Text style={styles.medicationDetailLabel}>Quantity</Text>
+                                    <Text style={styles.medicationDetailText}>{med.dosage}</Text>
+                                  </View>
+                                  <View style={styles.medicationDetailItem}>
+                                    <Text style={styles.medicationDetailLabel}>Instructions</Text>
+                                    <Text style={styles.medicationDetailText}>{med.mealOption}</Text>
+                                  </View>
                                 </View>
-                                <View style={styles.medicationDetailItem}>
-                                  <Text style={styles.medicationDetailLabel}>Instructions</Text>
-                                  <Text style={styles.medicationDetailText}>{med.mealOption}</Text>
-                                </View>
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    );
-                  }
-                  return null;
-                })}
-              </View>
-              
-              <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
-                <Text style={styles.buttonText}>Add More Medications</Text>
-              </TouchableOpacity>
-              
-             
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      );
+                    }
+                    return null;
+                  })}
+                  
+                  <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
+                    <Text style={styles.buttonText}>Add More Medications</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </>
           )}
         </>

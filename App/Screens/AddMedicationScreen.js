@@ -34,7 +34,7 @@ const AddMedicationScreen = ({ navigation, route }) => {
   const [snooze, setSnooze] = useState('5 minutes');
   const [notes, setNotes] = useState('');
 
-  // Options for pickers
+
   const mealOptions = ['Before Meal', 'With Meal', 'After Meal'];
   const dosageOptions = ['1/2 Tablet', '1 Tablet', '2 Tablets', '3 Tablets'];
   const periodicityOptions = ['Daily', 'Twice Daily', 'Every Other Day', 'Weekly', 'As Needed'];

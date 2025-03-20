@@ -29,7 +29,7 @@ export default function OCRScreen({ route, navigation }) {
           };
         });
 
-        // Call Google Cloud Vision API
+        // Calling Google Cloud Vision API
         const apiKey = 'AIzaSyCtf2UA4ly08Jpz4ZexKFY2Ts3lY2XFHyE'; // Google Cloud API key
         const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
         const requestData = {

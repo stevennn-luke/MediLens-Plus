@@ -34,7 +34,7 @@ export default function MediVision({ navigation, route }) {
     }, [])
   );
 
-  // Handle new medication from route params
+ 
   useEffect(() => {
     if (route.params?.newMedication) {
       addNewMedication(route.params.newMedication);
@@ -46,7 +46,6 @@ export default function MediVision({ navigation, route }) {
       const storedMedications = await AsyncStorage.getItem('scannedMedications');
       if (storedMedications) {
         setScannedMedications(JSON.parse(storedMedications));
-        // Update refresh key to trigger re-render
         setRefreshKey(prevKey => prevKey + 1);
       }
     } catch (error) {

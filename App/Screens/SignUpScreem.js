@@ -39,7 +39,7 @@ const SignUpScreen = () => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       //alert('Check your emails!');
-      // Only navigate to ProfileScreen if sign-up was successful and email does not already exist
+     
       navigation.navigate('ProfileScreen');
     } catch (error) {
       // Check if the error is because of the email already being in use

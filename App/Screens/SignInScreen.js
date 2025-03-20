@@ -33,7 +33,7 @@ const SignInPage = () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       //alert('Sign in successful!');
-      navigation.navigate('HomeScreen'); // Navigate to HomeScreen 
+      navigation.navigate('HomeScreen'); 
     } catch (error) {
       alert("Sign-In Failed: " + error.message); // error message if sign-in fails
     }

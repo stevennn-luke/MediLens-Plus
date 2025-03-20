@@ -16,7 +16,7 @@ const WelcomeScreen = () => {
   const [hasNavigated, setHasNavigated] = useState(false);
   const timeoutRef = useRef(null);
   
-  // Function to clear all pending animations and timers
+  // Clear all animations and timers
   const clearAllAnimations = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -29,7 +29,7 @@ const WelcomeScreen = () => {
   const navigateToHome = () => {
     if (!hasNavigated) {
       setHasNavigated(true);
-      // Clear all pending animations before navigating
+      // Clear animations before navigating
       clearAllAnimations();
       navigation.navigate('Welcome');
     }
@@ -42,7 +42,7 @@ const WelcomeScreen = () => {
       duration: 1000,
       useNativeDriver: true,
     }).start(() => {
-      // animate subtitle
+      
       Animated.timing(subtitleOpacity, {
         toValue: 1,
         duration: 1000,

@@ -26,7 +26,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
   };
 
   const handleResetPassword = async () => {
-    // Reset previous errors
+  
     setEmailError('');
     
     // Validate email
@@ -53,7 +53,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
       console.error('Error sending password reset email:', error);
       let errorMessage = 'Failed to send password reset email. Please try again later.';
       
-      // Handle specific Firebase error codes
+      
       if (error.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email address.';
       } else if (error.code === 'auth/invalid-email') {

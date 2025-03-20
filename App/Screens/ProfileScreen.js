@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   iosPicker: {
-    height: 216, // Standard iOS picker height
+    height: 216, 
     backgroundColor: '#fff',
   },
 });

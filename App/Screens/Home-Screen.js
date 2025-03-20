@@ -5,7 +5,7 @@ import { collection, getDocs, doc, setDoc, addDoc, getDoc, query, where, orderBy
 import { auth, db } from '../../config/firebase';
 import * as Notifications from 'expo-notifications';
 
-// Configure notifications
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -49,7 +49,7 @@ const HomeScreen = () => {
     return months[month];
   }
 
-  // Get today's date at midnight for comparing logs
+  
   const getTodayAtMidnight = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -74,14 +74,14 @@ const HomeScreen = () => {
         } else if (timeParts[1].includes('PM')) {
           minutes = parseInt(timeParts[1].split(' ')[0]);
           isPM = true;
-          // Only add 12 if it's 1pm-11pm (don't add for 12pm)
+       
           if (hours < 12) hours += 12;
         } else {
           minutes = parseInt(timeParts[1]);
         }
       }
     } else {
-      // Try to parse the entire string as a time
+      
       try {
         hours = parseInt(timeString);
       } catch (error) {
@@ -116,7 +116,7 @@ const HomeScreen = () => {
     }
   };
 
-  // Convert time string to minutes since midnight for comparison
+  
   const timeToMinutes = (timeString) => {
     if (!timeString) return -1;
     
@@ -161,36 +161,35 @@ const HomeScreen = () => {
     return hours * 60 + minutes;
   };
 
- // Schedule notification for a medication
+ // Schedule notification for medication
 const scheduleNotification = async (medication) => {
   try {
     const timeInMinutes = timeToMinutes(medication.time);
     if (timeInMinutes === -1) return;
 
-    // Get notify setting, default to 15 minutes if not specified
+   d
     let notifyMinutesBefore = 15;
     if (medication.notify && medication.notify.trim() !== '') {
-      // Parse the notify time from firebase
+      
       const notifyMatch = medication.notify.match(/(\d+)\s*(?:minute|min|m)?s?/i);
       if (notifyMatch && notifyMatch[1]) {
         notifyMinutesBefore = parseInt(notifyMatch[1]);
       }
     }
 
-    // Calculate notification time
     const now = new Date();
     let notificationDate = new Date();
     
-    // Calculate target medication time in minutes since midnight
+
     const medicationHours = Math.floor(timeInMinutes / 60);
     const medicationMinutes = timeInMinutes % 60;
     
-    // Set the medication time
+    // Seting the medication time
     notificationDate.setHours(medicationHours);
     notificationDate.setMinutes(medicationMinutes);
     notificationDate.setSeconds(0);
     
-    // Now subtract the notification time
+
     notificationDate = new Date(notificationDate.getTime() - (notifyMinutesBefore * 60 * 1000));
     
     // If the notification time has already passed today, schedule for tomorrow
@@ -211,7 +210,7 @@ const scheduleNotification = async (medication) => {
       trigger: notificationDate,
     });
 
-    // Save notification ID to Firestore for reference
+    // Saveing notification ID to Firestore for reference
     const userId = auth.currentUser.uid;
     const notificationRef = doc(db, 'users', userId, 'medications', medication.id);
     await setDoc(notificationRef, {
@@ -246,7 +245,7 @@ const scheduleNotification = async (medication) => {
       const userId = auth.currentUser.uid;
       const takenAt = new Date();
       
-      // Add to medication logs collection
+      // Adding to medication logs collection
       const logRef = await addDoc(collection(db, 'users', userId, 'medicationLogs'), {
         medicationId: medication.id,
         medicationName: medication.medicationName || medication.name,
@@ -257,7 +256,7 @@ const scheduleNotification = async (medication) => {
       
       console.log(`Recorded ${medication.medicationName || medication.name} as taken at ${takenAt.toLocaleString()}`);
       
-      // Update our local state to reflect the change
+
       setMedicationLogs(prevLogs => ({
         ...prevLogs,
         [medication.id]: {
@@ -283,7 +282,7 @@ const scheduleNotification = async (medication) => {
     }
   };
 
-  // Fetch medication logs to determine which medications have been taken today
+  // Fetching medication logs to determine which medications have been taken today
   const fetchMedicationLogs = async () => {
     try {
       const userId = auth.currentUser ? auth.currentUser.uid : null;
@@ -292,7 +291,7 @@ const scheduleNotification = async (medication) => {
       const today = getTodayAtMidnight();
       const logsCollection = collection(db, 'users', userId, 'medicationLogs');
       
-      // Get logs for today
+    
       const todayLogs = await getDocs(logsCollection);
       
       
@@ -362,7 +361,7 @@ const scheduleNotification = async (medication) => {
       setMedications(medicationList);
       setLoading(false);
       
-      // Schedule notifications for all medications
+    
       medicationList.forEach(med => {
         scheduleNotification(med);
       });
@@ -542,7 +541,7 @@ const scheduleNotification = async (medication) => {
     );
   };
 
-  // Render the additional sections that should always appear in Up Next tab
+
   const renderAdditionalSections = () => {
     return (
       <>
@@ -662,7 +661,7 @@ const scheduleNotification = async (medication) => {
                 </>
               )}
               
-              {/* Always show these sections in Up Next tab, regardless of medication status */}
+             
               {renderAdditionalSections()}
             </>
           ) : (
@@ -680,7 +679,7 @@ const scheduleNotification = async (medication) => {
                 </View>
               ) : (
                 <>
-                  {/* Display all medications grouped by time of day */}
+                
                   {timeOrder.map(timeOfDay => {
                     if (groupedMedications[timeOfDay] && groupedMedications[timeOfDay].length > 0) {
                       return (

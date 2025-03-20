@@ -10,7 +10,7 @@ const MedTrack = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
 
   const getTimeOfDay = (timeString) => {
-    // Existing time of day function remains unchanged
+   
     if (!timeString) return 'Other';
     
     let hours = 0;
@@ -35,7 +35,7 @@ const MedTrack = ({ navigation }) => {
         }
       }
     } else {
-      // Try to parse the entire string as a time
+    
       try {
         hours = parseInt(timeString);
       } catch (error) {
@@ -44,7 +44,7 @@ const MedTrack = ({ navigation }) => {
       }
     }
     
-    // Convert 12-hour format to 24-hour if needed
+   
     if (isPM && hours < 12) {
       hours += 12;
     }
@@ -70,9 +70,9 @@ const MedTrack = ({ navigation }) => {
     }
   };
 
-  // Helper function to convert time string to minutes for sorting
+  // Convert time string to minutes for sorting
   const timeToMinutes = (timeString) => {
-    // Existing time to minutes function remains unchanged
+ 
     if (!timeString) return 0;
     
     let hours = 0;
@@ -114,7 +114,7 @@ const MedTrack = ({ navigation }) => {
     return hours * 60 + minutes;
   };
 
-  // Function to handle medication deletion
+  // Handle medication deletion
   const handleDeleteMedication = async (medicationId, medicationName) => {
     try {
       const userId = auth.currentUser ? auth.currentUser.uid : null;
@@ -123,7 +123,7 @@ const MedTrack = ({ navigation }) => {
         return;
       }
 
-      // Show confirmation alert
+    
       Alert.alert(
         "Delete Medication",
         `Are you sure you want to delete ${medicationName || "this medication"}?`,
@@ -160,7 +160,7 @@ const MedTrack = ({ navigation }) => {
     }
   };
 
-  // Function to fetch medications
+  // Fetch medications
   const fetchMedications = async () => {
     try {
       setLoading(true);
@@ -183,24 +183,24 @@ const MedTrack = ({ navigation }) => {
 
       const medicationList = medicationSnapshot.docs.map(doc => {
         const data = doc.data();
-        console.log("Medication data:", data); // Debug: Log each medication
+        console.log("Medication data:", data); 
         
-        // Calculate time of day
+        
         const timeOfDay = getTimeOfDay(data.time);
         
         return {
           id: doc.id,
           ...data,
           timeOfDay: timeOfDay,
-          // Store minutes for sorting
+          
           timeInMinutes: timeToMinutes(data.time)
         };
       });
       
-      // Sort the entire medication list by time
+      // Sorting the entire medication list by time
       medicationList.sort((a, b) => a.timeInMinutes - b.timeInMinutes);
       
-      console.log("Processed medications:", medicationList); // Debug: Log processed data
+      console.log("Processed medications:", medicationList); 
       setMedications(medicationList);
       setLoading(false);
     } catch (error) {
@@ -209,18 +209,18 @@ const MedTrack = ({ navigation }) => {
     }
   };
 
-  // Use useFocusEffect to reload data whenever the screen comes into focus
+  
   useFocusEffect(
     React.useCallback(() => {
-      console.log("Screen focused, fetching medications..."); // Debug
+      console.log("Screen focused, fetching medications..."); 
       fetchMedications();
       return () => {
-        // Do any cleanup if needed
+       
       };
     }, [])
   );
 
-  // Initial load
+  
   useEffect(() => {
     fetchMedications();
   }, []);
@@ -235,7 +235,7 @@ const MedTrack = ({ navigation }) => {
     return groups;
   }, { Morning: [], Afternoon: [], Evening: [], Night: [], Other: [] });
 
-  // Sort medications in each group by time
+  // Sorting medications in each group by time
   Object.keys(groupedMedications).forEach(key => {
     groupedMedications[key].sort((a, b) => a.timeInMinutes - b.timeInMinutes);
   });
@@ -325,7 +325,7 @@ const MedTrack = ({ navigation }) => {
                         style={styles.medicationCard}
                         onPress={() => navigation.navigate('MedicationDetail', { medicationId: med.id })}
                         onLongPress={() => handleDeleteMedication(med.id, med.medicationName)}
-                        delayLongPress={500} // Half a second long press to trigger
+                        delayLongPress={500} 
                       >
                         <View style={styles.medicationHeader}>
                           <Text style={styles.medicationName}>
@@ -365,7 +365,7 @@ const MedTrack = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  // Styles remain unchanged
+
   container: {
     flex: 1,
     backgroundColor: '#fff',

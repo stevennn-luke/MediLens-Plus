@@ -20,4 +20,3 @@ const db = getFirestore(app); // Initialize Firestore
 
 export { app, auth, db }; // Export Firestore
 
-

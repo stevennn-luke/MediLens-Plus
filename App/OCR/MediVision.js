@@ -14,26 +14,40 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { 
+  collection, 
+  getDocs, 
+  doc, 
+  setDoc, 
+  addDoc, 
+  getDoc, 
+  deleteDoc,
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  serverTimestamp
+} from 'firebase/firestore';
+import { auth, db } from '../../config/firebase';
 
 export default function MediVision({ navigation, route }) {
   const [scannedMedications, setScannedMedications] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
-
+  
+  // Reference to the medications collection
+  const medicationsCollectionRef = collection(db, 'OCR Medications');
 
   useEffect(() => {
     loadScannedMedications();
   }, []);
   
-
   useFocusEffect(
     useCallback(() => {
       loadScannedMedications();
       return () => {}; 
     }, [])
   );
-
  
   useEffect(() => {
     if (route.params?.newMedication) {
@@ -43,30 +57,77 @@ export default function MediVision({ navigation, route }) {
 
   const loadScannedMedications = async () => {
     try {
-      const storedMedications = await AsyncStorage.getItem('scannedMedications');
-      if (storedMedications) {
-        setScannedMedications(JSON.parse(storedMedications));
-        setRefreshKey(prevKey => prevKey + 1);
-      }
-    } catch (error) {
-      console.error('Error loading medications:', error);
-    }
-  };
-  
-  const saveScannedMedications = async (medications) => {
-    try {
-      await AsyncStorage.setItem('scannedMedications', JSON.stringify(medications));
-      // Update refresh key to trigger re-render
+      // Create a query with orderBy
+      const medicationsQuery = query(
+        medicationsCollectionRef,
+        orderBy('createdAt', 'desc')
+      );
+      
+      // Get documents
+      const querySnapshot = await getDocs(medicationsQuery);
+      
+      // Map documents to array with IDs
+      const medications = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setScannedMedications(medications);
       setRefreshKey(prevKey => prevKey + 1);
     } catch (error) {
-      console.error('Error saving medications:', error);
+      console.error('Error loading medications from Firebase:', error);
+      Alert.alert('Error', 'Could not load your medication history.');
     }
   };
   
-  const addNewMedication = (medication) => {
-    const updatedMedications = [medication, ...scannedMedications];
-    setScannedMedications(updatedMedications);
-    saveScannedMedications(updatedMedications);
+  const addNewMedication = async (medication) => {
+    try {
+      // Add timestamp to medication data
+      const medicationWithTimestamp = {
+        ...medication,
+        createdAt: serverTimestamp()
+      };
+      
+      // Add document to collection
+      await addDoc(medicationsCollectionRef, medicationWithTimestamp);
+      
+      // Reload medications
+      loadScannedMedications();
+    } catch (error) {
+      console.error('Error adding medication to Firebase:', error);
+      Alert.alert('Error', 'Could not save the medication information.');
+    }
+  };
+  
+  const deleteMedication = (id) => {
+    Alert.alert(
+      'Delete Medication',
+      'Are you sure you want to delete this medication?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Create reference to the specific document
+              const medicationDocRef = doc(db, 'OCR Medications', id);
+              
+              // Delete the document
+              await deleteDoc(medicationDocRef);
+              
+              // Reload medications
+              loadScannedMedications();
+              
+              Alert.alert('Success', 'Medication deleted successfully.');
+            } catch (error) {
+              console.error('Error deleting medication:', error);
+              Alert.alert('Error', 'Could not delete the medication.');
+            }
+          }
+        }
+      ]
+    );
   };
   
   const takePhoto = async () => {
@@ -108,7 +169,15 @@ export default function MediVision({ navigation, route }) {
   };
   
   const renderMedicationItem = ({ item }) => (
-    <View style={styles.medicationItem}>
+    <TouchableOpacity 
+      style={styles.medicationItem}
+      onPress={() => navigation.navigate('OCR', { 
+        imageUri: item.imageUri,
+        existingData: item
+      })}
+      onLongPress={() => deleteMedication(item.id)}
+      delayLongPress={500}
+    >
       <Image source={{ uri: item.imageUri }} style={styles.medicationImage} />
       <View style={styles.medicationInfo}>
         <Text style={styles.medicationName}>{item.name || 'Unknown Medication'}</Text>
@@ -118,11 +187,14 @@ export default function MediVision({ navigation, route }) {
       </View>
       <TouchableOpacity 
         style={styles.viewDetailsButton}
-        onPress={() => navigation.navigate('OCR', { imageUri: item.imageUri })}
+        onPress={() => navigation.navigate('OCR', { 
+          imageUri: item.imageUri,
+          existingData: item
+        })}
       >
         <Text style={styles.viewDetailsText}>View</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
   
   return (
@@ -157,10 +229,11 @@ export default function MediVision({ navigation, route }) {
       {scannedMedications.length > 0 && (
         <View style={styles.historyContainer}>
           <Text style={styles.historyTitle}>History</Text>
+          <Text style={styles.longPressHint}>Long press to delete an item</Text>
           <FlatList
             data={scannedMedications}
             renderItem={renderMedicationItem}
-            keyExtractor={(item, index) => `${index}-${refreshKey}`}
+            keyExtractor={(item) => item.id}
             contentContainerStyle={styles.medicationList}
             extraData={refreshKey}
           />
@@ -244,7 +317,13 @@ const styles = StyleSheet.create({
   historyTitle: {
     fontSize: 20,
     fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  longPressHint: {
+    fontSize: 12,
+    color: '#888',
     marginBottom: 10,
+    fontStyle: 'italic'
   },
   medicationList: {
     paddingBottom: 20,

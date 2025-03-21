@@ -5,7 +5,6 @@ import { collection, getDocs, doc, setDoc, addDoc, getDoc, query, where, orderBy
 import { auth, db } from '../../config/firebase';
 import * as Notifications from 'expo-notifications';
 
-
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -49,7 +48,6 @@ const HomeScreen = () => {
     return months[month];
   }
 
-  
   const getTodayAtMidnight = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -74,14 +72,12 @@ const HomeScreen = () => {
         } else if (timeParts[1].includes('PM')) {
           minutes = parseInt(timeParts[1].split(' ')[0]);
           isPM = true;
-       
           if (hours < 12) hours += 12;
         } else {
           minutes = parseInt(timeParts[1]);
         }
       }
     } else {
-      
       try {
         hours = parseInt(timeString);
       } catch (error) {
@@ -116,7 +112,6 @@ const HomeScreen = () => {
     }
   };
 
-  
   const timeToMinutes = (timeString) => {
     if (!timeString) return -1;
     
@@ -161,68 +156,64 @@ const HomeScreen = () => {
     return hours * 60 + minutes;
   };
 
- // Schedule notification for medication
-const scheduleNotification = async (medication) => {
-  try {
-    const timeInMinutes = timeToMinutes(medication.time);
-    if (timeInMinutes === -1) return;
+  // Schedule notification for medication - Fixed the stray 'd' character
+  const scheduleNotification = async (medication) => {
+    try {
+      const timeInMinutes = timeToMinutes(medication.time);
+      if (timeInMinutes === -1) return;
 
-   d
-    let notifyMinutesBefore = 15;
-    if (medication.notify && medication.notify.trim() !== '') {
-      
-      const notifyMatch = medication.notify.match(/(\d+)\s*(?:minute|min|m)?s?/i);
-      if (notifyMatch && notifyMatch[1]) {
-        notifyMinutesBefore = parseInt(notifyMatch[1]);
+      let notifyMinutesBefore = 15;
+      if (medication.notify && medication.notify.trim() !== '') {
+        const notifyMatch = medication.notify.match(/(\d+)\s*(?:minute|min|m)?s?/i);
+        if (notifyMatch && notifyMatch[1]) {
+          notifyMinutesBefore = parseInt(notifyMatch[1]);
+        }
       }
+
+      const now = new Date();
+      let notificationDate = new Date();
+      
+      const medicationHours = Math.floor(timeInMinutes / 60);
+      const medicationMinutes = timeInMinutes % 60;
+      
+      // Setting the medication time
+      notificationDate.setHours(medicationHours);
+      notificationDate.setMinutes(medicationMinutes);
+      notificationDate.setSeconds(0);
+      
+      notificationDate = new Date(notificationDate.getTime() - (notifyMinutesBefore * 60 * 1000));
+      
+      // If the notification time has already passed today, schedule for tomorrow
+      if (notificationDate.getTime() < now.getTime()) {
+        notificationDate.setDate(notificationDate.getDate() + 1);
+      }
+
+      // Cancel any existing notifications for this medication
+      await cancelMedicationNotification(medication.id);
+      
+      // Schedule the notification
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Medication Reminder',
+          body: `Time to take ${medication.medicationName || medication.name} in ${notifyMinutesBefore} minutes`,
+          data: { medicationId: medication.id },
+        },
+        trigger: notificationDate,
+      });
+
+      // Saving notification ID to Firestore for reference
+      const userId = auth.currentUser.uid;
+      const notificationRef = doc(db, 'users', userId, 'medications', medication.id);
+      await setDoc(notificationRef, {
+        notificationId: notificationId,
+        notifyMinutesBefore: notifyMinutesBefore
+      }, { merge: true });
+
+      console.log(`Notification scheduled for ${medication.medicationName || medication.name} at ${notificationDate.toLocaleTimeString()} (${notifyMinutesBefore} min before dose time: ${medication.time})`);
+    } catch (error) {
+      console.error("Error scheduling notification:", error);
     }
-
-    const now = new Date();
-    let notificationDate = new Date();
-    
-
-    const medicationHours = Math.floor(timeInMinutes / 60);
-    const medicationMinutes = timeInMinutes % 60;
-    
-    // Seting the medication time
-    notificationDate.setHours(medicationHours);
-    notificationDate.setMinutes(medicationMinutes);
-    notificationDate.setSeconds(0);
-    
-
-    notificationDate = new Date(notificationDate.getTime() - (notifyMinutesBefore * 60 * 1000));
-    
-    // If the notification time has already passed today, schedule for tomorrow
-    if (notificationDate.getTime() < now.getTime()) {
-      notificationDate.setDate(notificationDate.getDate() + 1);
-    }
-
-    // Cancel any existing notifications for this medication
-    await cancelMedicationNotification(medication.id);
-    
-    // Schedule the notification
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Medication Reminder',
-        body: `Time to take ${medication.medicationName || medication.name} in ${notifyMinutesBefore} minutes`,
-        data: { medicationId: medication.id },
-      },
-      trigger: notificationDate,
-    });
-
-    // Saveing notification ID to Firestore for reference
-    const userId = auth.currentUser.uid;
-    const notificationRef = doc(db, 'users', userId, 'medications', medication.id);
-    await setDoc(notificationRef, {
-      notificationId: notificationId,
-      notifyMinutesBefore: notifyMinutesBefore
-    }, { merge: true });
-
-    console.log(`Notification scheduled for ${medication.medicationName || medication.name} at ${notificationDate.toLocaleTimeString()} (${notifyMinutesBefore} min before dose time: ${medication.time})`);
-  } catch (error) {
-    console.error("Error scheduling notification:", error);
-  }
-};
+  };
 
   // Cancel notification for a medication
   const cancelMedicationNotification = async (medicationId) => {
@@ -256,7 +247,6 @@ const scheduleNotification = async (medication) => {
       
       console.log(`Recorded ${medication.medicationName || medication.name} as taken at ${takenAt.toLocaleString()}`);
       
-
       setMedicationLogs(prevLogs => ({
         ...prevLogs,
         [medication.id]: {
@@ -291,9 +281,7 @@ const scheduleNotification = async (medication) => {
       const today = getTodayAtMidnight();
       const logsCollection = collection(db, 'users', userId, 'medicationLogs');
       
-    
       const todayLogs = await getDocs(logsCollection);
-      
       
       const newMedicationLogs = {};
       
@@ -301,9 +289,7 @@ const scheduleNotification = async (medication) => {
         const logData = doc.data();
         const logDate = logData.takenAt.toDate ? logData.takenAt.toDate() : new Date(logData.takenAt);
         
-        
         const isTodayLog = logDate >= today;
-        
         
         if (!newMedicationLogs[logData.medicationId]) {
           newMedicationLogs[logData.medicationId] = {
@@ -311,9 +297,7 @@ const scheduleNotification = async (medication) => {
             lastTakenAt: logDate
           };
         } else if (isTodayLog) {
-
           newMedicationLogs[logData.medicationId].takenToday = true;
-          
           
           if (logDate > newMedicationLogs[logData.medicationId].lastTakenAt) {
             newMedicationLogs[logData.medicationId].lastTakenAt = logDate;
@@ -338,7 +322,6 @@ const scheduleNotification = async (medication) => {
         return;
       }
 
-      
       await fetchMedicationLogs();
 
       const medicationsCollection = collection(db, 'users', userId, 'medications');
@@ -354,14 +337,13 @@ const scheduleNotification = async (medication) => {
         };
       });
       
- 
       medicationList.sort((a, b) => a.timeInMinutes - b.timeInMinutes);
       console.log("Processed medications:", medicationList); 
       
       setMedications(medicationList);
       setLoading(false);
       
-    
+      // Schedule notifications for each medication
       medicationList.forEach(med => {
         scheduleNotification(med);
       });
@@ -371,13 +353,12 @@ const scheduleNotification = async (medication) => {
     }
   };
 
-
   useFocusEffect(
     React.useCallback(() => {
-      console.log("Screen focused, fetching medications..."); // Debug
+      console.log("Screen focused, fetching medications...");
       fetchMedications();
       return () => {
-
+        // Cleanup if needed
       };
     }, [])
   );
@@ -394,20 +375,16 @@ const scheduleNotification = async (medication) => {
 
   const timeOrder = ['Morning', 'Afternoon', 'Evening', 'Night', 'Other'];
 
- 
   const getNextMedication = () => {
     const currentDate = new Date();
     const currentHour = currentDate.getHours();
     const currentMinutes = currentDate.getMinutes();
     
-
     const currentTimeInMinutes = currentHour * 60 + currentMinutes;
     
-
     const medicationsWithTimeDiff = medications.map(med => {
       const medTimeInMinutes = timeToMinutes(med.time);
       
-   
       let timeDifference = medTimeInMinutes - currentTimeInMinutes;
       if (timeDifference < 0) {
         timeDifference += 24 * 60; 
@@ -467,7 +444,6 @@ const scheduleNotification = async (medication) => {
   };
 
   const handleUpNextMedicationPress = (medication) => {
-   
     if (medicationLogs[medication.id]?.takenToday) {
       Alert.alert(
         "Already Taken",
@@ -475,7 +451,6 @@ const scheduleNotification = async (medication) => {
         [{ text: "OK" }]
       );
     } else {
-      
       Alert.alert(
         "Medication Reminder",
         `Have you taken your ${medication.medicationName || medication.name}?`,
@@ -493,11 +468,9 @@ const scheduleNotification = async (medication) => {
     }
   };
 
- 
   const isMedicationTaken = (medicationId) => {
     return medicationLogs[medicationId]?.takenToday || false;
   };
-
 
   const renderMedicationCard = (medData) => {
     if (!medData) return null;
@@ -519,7 +492,6 @@ const scheduleNotification = async (medication) => {
             ]}>
               {taken ? "Taken" : "Not Taken"}
             </Text>
-            
           </View>
           
           <View style={styles.medicationDetailsContainer}>
@@ -541,7 +513,7 @@ const scheduleNotification = async (medication) => {
     );
   };
 
-
+  // Fixed renderAdditionalSections function - moved inside component
   const renderAdditionalSections = () => {
     return (
       <>
@@ -558,18 +530,21 @@ const scheduleNotification = async (medication) => {
           <Text style={styles.buttonText}>MediVision</Text>
         </TouchableOpacity>
         
-        {/* Track Your Medication */}
+        {/* Track Your Medication - Updated with button */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Track Your Medication</Text>
           <Text style={styles.cardDescription}>
             Why it's Important to keep up with what you're taking
           </Text>
-          <TouchableOpacity style={styles.readMoreButton}>
-            <Text style={styles.readMoreText}>Read about it</Text>
+          <TouchableOpacity 
+            style={styles.blackButton} 
+            onPress={handleAdd}
+          >
+            <Text style={styles.buttonText}>Track Medication</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Medication Log Section */}
+        {/* Medication Log Section - Updated with button */}
         <Text style={styles.sectionTitle}>Medication Log</Text>
 
         {/* Daily Logs */}
@@ -578,6 +553,11 @@ const scheduleNotification = async (medication) => {
           <Text style={styles.cardDescription}>
             Log the medications you have taken to keep track of it
           </Text>
+          <TouchableOpacity 
+            style={styles.blackButton}
+          >
+            <Text style={styles.buttonText}>Logs</Text>
+          </TouchableOpacity>
         </View>
       </>
     );
@@ -654,14 +634,9 @@ const scheduleNotification = async (medication) => {
                       }
                     })()}
                   </View>
-                  
-                  <TouchableOpacity style={styles.addMoreButton} onPress={handleAdd}>
-                    <Text style={styles.buttonText}>Add More Medications</Text>
-                  </TouchableOpacity>
                 </>
               )}
               
-             
               {renderAdditionalSections()}
             </>
           ) : (
@@ -679,7 +654,6 @@ const scheduleNotification = async (medication) => {
                 </View>
               ) : (
                 <>
-                
                   {timeOrder.map(timeOfDay => {
                     if (groupedMedications[timeOfDay] && groupedMedications[timeOfDay].length > 0) {
                       return (
@@ -704,7 +678,6 @@ const scheduleNotification = async (medication) => {
                                   ]}>
                                     {taken ? "Taken" : "Not Taken"}
                                   </Text>
-                              
                                 </View>
                                 
                                 <View style={styles.medicationDetailsContainer}>
@@ -740,7 +713,6 @@ const scheduleNotification = async (medication) => {
         </>
       )}
 
-     
       <View style={styles.bottomPadding} />
     </ScrollView>
   );
@@ -957,6 +929,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#555',
     textAlign: 'center',
+  },
+  medicationStatus: {
+    marginTop: 5,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  takenStatus: {
+    color: '#4CAF50',
+  },
+  notTakenStatus: {
+    color: '#FF5722',
   }
 });
 

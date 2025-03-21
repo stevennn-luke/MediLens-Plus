@@ -18,6 +18,7 @@ import MedTrack from './App/Screens/Med-Track-Screen';
 import AddMedicationScreen from './App/Screens/AddMedicationScreen';
 import ActualProfile from './App/Screens/ActualProfileScreen';
 import OCRScreen from './App/OCR/OCRScreen';
+import CalendarScreen from './App/Screens/CalendarScreen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import 'react-native-gesture-handler'; 

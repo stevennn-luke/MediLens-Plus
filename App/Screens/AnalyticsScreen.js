@@ -40,8 +40,8 @@ const AnalyticsScreen = ({ navigation }) => {
     datasets: [{ data: [] }]
   });
 
-  // Calculate screen width for charts - adjusted to ensure content fits
-  const screenWidth = Dimensions.get('window').width - 60; // Increased padding for better fit
+  // Adjusted screen width to ensure chart fits inside the card
+  const screenWidth = Dimensions.get('window').width - 60; 
 
   useEffect(() => {
     fetchMedicationAnalytics();
@@ -228,28 +228,35 @@ const AnalyticsScreen = ({ navigation }) => {
         </View>
       ) : (
         <ScrollView style={styles.scrollView}>
-          {/* Summary Card */}
+          {/* Summary Card - Reorganized with left-aligned Top Med */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>30-Day Summary</Text>
-            <View style={styles.summaryContainer}>
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryNumber, { color: ACCENT_COLOR }]}>{medicationLogs.length}</Text>
-                <Text style={styles.summaryLabel}>Total Doses</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryNumber, { color: ACCENT_COLOR }]}>{adherenceRate.toFixed(0)}%</Text>
-                <Text style={styles.summaryLabel}>Adherence Rate</Text>
-              </View>
-              <View style={styles.summaryItem}>
+            <View style={styles.summaryContainerTopMed}>
+              {/* Top Med is now left-aligned */}
+              <View style={styles.summaryItemLeftAligned}>
                 <Text style={[styles.summaryNumber, { color: ACCENT_COLOR }]}>
                   {medicationStats.length > 0 ? medicationStats[0].name.substring(0, 10) : 'N/A'}
                 </Text>
                 <Text style={styles.summaryLabel}>Top Med</Text>
               </View>
             </View>
+            
+            {/* Total Doses and Adherence Rate with 20px gap */}
+            <View style={styles.secondarySummaryContainer}>
+              <View style={styles.summaryItem}>
+                <Text style={[styles.summaryNumber, { color: ACCENT_COLOR }]}>{medicationLogs.length}</Text>
+                <Text style={styles.summaryLabel}>Total Doses</Text>
+              </View>
+              {/* Empty View for spacing */}
+              <View style={{width: 20}} />
+              <View style={styles.summaryItem}>
+                <Text style={[styles.summaryNumber, { color: ACCENT_COLOR }]}>{adherenceRate.toFixed(0)}%</Text>
+                <Text style={styles.summaryLabel}>Adherence Rate</Text>
+              </View>
+            </View>
           </View>
 
-          {/* Weekly Trend Chart */}
+          {/* Weekly Trend Chart - Properly centered in card */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Weekly Trend</Text>
             <Text style={styles.cardSubtitle}>Number of medications taken each day</Text>
@@ -333,7 +340,8 @@ const AnalyticsScreen = ({ navigation }) => {
                 </View>
               </View>
               
-              <View style={styles.insightItem}>
+              {/* Added 20px margin-top gap here */}
+              <View style={[styles.insightItem, styles.secondInsightItem]}>
                 <Ionicons 
                   name={Object.entries(timeOfDayData).sort((a, b) => b[1] - a[1])[0][0] === 'morning' ? 
                         "sunny-outline" : 
@@ -377,7 +385,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 5,
-    marginLeft: 10, // Added 10px margin from left as requested
+    marginLeft: 10,
   },
   loadingContainer: {
     flex: 1,
@@ -409,10 +417,18 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 20,
   },
-  summaryContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  summaryContainerTopMed: {
+    alignItems: 'flex-start', // Align Top Med to the left
     marginTop: 10,
+    marginBottom: 20, // Space between Top Med and the row below
+  },
+  summaryItemLeftAligned: {
+    alignItems: 'flex-start', // Left align the content
+  },
+  secondarySummaryContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start', // Align to the left instead of space-between
+    // No need for justifyContent: 'space-between' since we're using a spacer View
   },
   summaryItem: {
     alignItems: 'center',
@@ -428,8 +444,8 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   chartContainer: {
-    alignItems: 'center', // Center the chart horizontally
-    paddingHorizontal: 5, // Add padding for better fit
+    alignItems: 'center', // Center horizontally in the card
+    marginLeft: 0, // Reset any left margin to properly center
   },
   chart: {
     marginVertical: 8,
@@ -503,11 +519,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   insightContainer: {
-    marginTop: 20, // Added 20px gap as requested
+    marginTop: 10,
   },
   insightItem: {
     flexDirection: 'row',
     marginBottom: 20,
+  },
+  secondInsightItem: {
+    marginTop: 20, // 20px gap as requested
   },
   insightContent: {
     marginLeft: 15,

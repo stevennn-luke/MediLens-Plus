@@ -553,11 +553,12 @@ const HomeScreen = () => {
           <Text style={styles.cardDescription}>
             Log the medications you have taken to keep track of it
           </Text>
-          <TouchableOpacity 
-            style={styles.blackButton}
-          >
-            <Text style={styles.buttonText}>Logs</Text>
-          </TouchableOpacity>
+          <TouchableOpacity
+  style={styles.blackButton}
+  onPress={() => navigation.navigate('CalendarScreen')}
+>
+  <Text style={styles.buttonText}>Logs</Text>
+</TouchableOpacity>
         </View>
       </>
     );

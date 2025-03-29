@@ -1,45 +1,86 @@
-
-/*
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Modal, ScrollView } from 'react-native';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator
+} from 'react-native';
 import { Calendar } from 'react-native-calendars';
-import firestore from '@react-native-firebase/firestore';
-import moment from 'moment';
+import { Ionicons } from '@expo/vector-icons';
+import { db } from '../../config/firebase';
 
-const CalendarScreen = () => {
-  const [markedDates, setMarkedDates] = useState({});
+const CalendarScreen = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState('');
-  const [medicationsForDay, setMedicationsForDay] = useState([]);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [medicationLogs, setMedicationLogs] = useState([]);
+  const [markedDates, setMarkedDates] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchMedicationLogs();
   }, []);
 
+  // Format date as YYYY-MM-DD
+  const formatDateString = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Format date as Month Day, Year
+  const formatReadableDate = (dateString) => {
+    const date = new Date(dateString);
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+  };
+
+  // Format time as hh:mm AM/PM
+  const formatTime = (date) => {
+    const hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
   const fetchMedicationLogs = async () => {
     try {
       setLoading(true);
-      const medicationLogsRef = firestore().collection('medicationLogs');
-      const snapshot = await medicationLogsRef.get();
+      const logsRef = db.collection('medicationLogs');
+      const snapshot = await logsRef.get();
       
-      const marked = {};
+      const logs = [];
+      const markedDatesObj = {};
       
       snapshot.forEach(doc => {
         const data = doc.data();
-        if (data.takenAt) {
-          const date = moment(data.takenAt.toDate()).format('YYYY-MM-DD');
-          
-          marked[date] = {
-            selected: true,
-            marked: true,
-            selectedColor: '#4CAF50',
-            dotColor: '#4CAF50'
-          };
-        }
+        // Convert Firestore timestamp to Date object
+        const takenAt = data.takenAt?.toDate ? data.takenAt.toDate() : new Date(data.takenAt);
+        
+        // Format date for calendar marking (YYYY-MM-DD)
+        const dateString = formatDateString(takenAt);
+        
+        // Add to logs array
+        logs.push({
+          id: doc.id,
+          ...data,
+          takenAt,
+          dateString
+        });
+        
+        // Mark dates in calendar
+        markedDatesObj[dateString] = {
+          marked: true,
+          dotColor: '#50cebb',
+          selected: selectedDate === dateString
+        };
       });
       
-      setMarkedDates(marked);
+      setMedicationLogs(logs);
+      setMarkedDates(markedDatesObj);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching medication logs:', error);
@@ -47,118 +88,119 @@ const CalendarScreen = () => {
     }
   };
 
-  const fetchMedicationsForDate = async (date) => {
-    try {
-      const startOfDay = moment(date).startOf('day').toDate();
-      const endOfDay = moment(date).endOf('day').toDate();
-      
-      const medicationLogsRef = firestore().collection('medicationLogs');
-      const snapshot = await medicationLogsRef
-        .where('takenAt', '>=', startOfDay)
-        .where('takenAt', '<=', endOfDay)
-        .get();
-      
-      const medications = [];
-      
-      snapshot.forEach(doc => {
-        medications.push({
-          id: doc.id,
-          ...doc.data(),
-          takenAt: doc.data().takenAt ? moment(doc.data().takenAt.toDate()).format('h:mm A') : 'N/A',
-          scheduled: doc.data().scheduled ? moment(doc.data().scheduled.toDate()).format('h:mm A') : 'N/A'
-        });
-      });
-      
-      setMedicationsForDay(medications);
-      setSelectedDate(date);
-      setModalVisible(true);
-    } catch (error) {
-      console.error('Error fetching medications for date:', error);
-    }
+  const handleDateSelect = (day) => {
+    const selectedDateString = day.dateString;
+    
+    // Update selected date
+    setSelectedDate(selectedDateString);
+    
+    // Update marked dates to highlight selected date
+    const updatedMarkedDates = { ...markedDates };
+    
+    // Reset previous selection
+    Object.keys(updatedMarkedDates).forEach(date => {
+      if (updatedMarkedDates[date].selected) {
+        updatedMarkedDates[date] = {
+          ...updatedMarkedDates[date],
+          selected: false
+        };
+      }
+    });
+    
+    // Update new selection
+    updatedMarkedDates[selectedDateString] = {
+      ...(updatedMarkedDates[selectedDateString] || {}),
+      marked: true,
+      dotColor: '#50cebb',
+      selected: true,
+      selectedColor: '#50cebb'
+    };
+    
+    setMarkedDates(updatedMarkedDates);
   };
 
-  const onDayPress = (day) => {
-    fetchMedicationsForDate(day.dateString);
+  const getFilteredMedicationLogs = () => {
+    if (!selectedDate) return [];
+    return medicationLogs.filter(log => log.dateString === selectedDate);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>Medication Calendar</Text>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={24} color="black" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>MediVision</Text>
+        <View style={{ width: 24 }} />
+      </View>
       
-      <Calendar
-        markedDates={markedDates}
-        onDayPress={onDayPress}
-        theme={{
-          calendarBackground: '#ffffff',
-          textSectionTitleColor: '#b6c1cd',
-          selectedDayBackgroundColor: '#4CAF50',
-          selectedDayTextColor: '#ffffff',
-          todayTextColor: '#4CAF50',
-          dayTextColor: '#2d4150',
-          textDisabledColor: '#d9e1e8',
-          dotColor: '#4CAF50',
-          selectedDotColor: '#ffffff',
-          arrowColor: '#4CAF50',
-          monthTextColor: '#2d4150',
-          indicatorColor: '#4CAF50',
-          textDayFontWeight: '300',
-          textMonthFontWeight: 'bold',
-          textDayHeaderFontWeight: '300',
-          textDayFontSize: 16,
-          textMonthFontSize: 18,
-          textDayHeaderFontSize: 14
-        }}
-      />
-      
-      {loading && (
+      {loading ? (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading medication data...</Text>
+          <ActivityIndicator size="large" color="#50cebb" />
         </View>
-      )}
-      
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.centeredView}>
-          <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>{selectedDate ? moment(selectedDate).format('MMMM D, YYYY') : ''}</Text>
+      ) : (
+        <>
+          <Calendar
+            onDayPress={handleDateSelect}
+            markedDates={markedDates}
+            theme={{
+              todayTextColor: '#50cebb',
+              selectedDayBackgroundColor: '#50cebb',
+              dotColor: '#50cebb',
+              textMonthFontWeight: 'bold',
+              textDayHeaderFontWeight: '500',
+              arrowColor: '#50cebb',
+            }}
+          />
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.logsContainer}>
+            <Text style={styles.sectionTitle}>
+              {selectedDate ? 
+                `Medications for ${formatReadableDate(selectedDate)}` : 
+                'Select a date to view medications'}
+            </Text>
             
-            {medicationsForDay.length > 0 ? (
-              <ScrollView style={styles.medicationList}>
-                {medicationsForDay.map(medication => (
-                  <View key={medication.id} style={styles.medicationItem}>
-                    <Text style={styles.medicationName}>{medication.medicationName}</Text>
-                    <View style={styles.medicationDetails}>
-                      <Text style={styles.detailLabel}>Dosage:</Text>
-                      <Text style={styles.detailValue}>{medication.dosage}</Text>
+            <ScrollView style={styles.scrollView}>
+              {getFilteredMedicationLogs().length > 0 ? (
+                getFilteredMedicationLogs().map((log) => (
+                  <View key={log.id} style={styles.medicationCard}>
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.medicationName}>{log.medicationName}</Text>
+                      <Text style={styles.dosage}>{log.dosage}</Text>
                     </View>
-                    <View style={styles.medicationDetails}>
-                      <Text style={styles.detailLabel}>Scheduled:</Text>
-                      <Text style={styles.detailValue}>{medication.scheduled}</Text>
-                    </View>
-                    <View style={styles.medicationDetails}>
-                      <Text style={styles.detailLabel}>Taken at:</Text>
-                      <Text style={styles.detailValue}>{medication.takenAt}</Text>
+                    <View style={styles.timeContainer}>
+                      <View style={styles.timeItem}>
+                        <Ionicons name="time-outline" size={16} color="#666" />
+                        <Text style={styles.timeLabel}>Scheduled: </Text>
+                        <Text style={styles.timeValue}>{log.scheduled}</Text>
+                      </View>
+                      <View style={styles.timeItem}>
+                        <Ionicons name="checkmark-circle-outline" size={16} color="#50cebb" />
+                        <Text style={styles.timeLabel}>Taken at: </Text>
+                        <Text style={styles.timeValue}>
+                          {log.takenAt instanceof Date ? formatTime(log.takenAt) : log.takenAt}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                ))}
-              </ScrollView>
-            ) : (
-              <Text style={styles.noMedicationsText}>No medications taken on this day</Text>
-            )}
-            
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+                ))
+              ) : (
+                selectedDate && (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="calendar-outline" size={48} color="#ccc" />
+                    <Text style={styles.emptyStateText}>No medications taken on this date</Text>
+                  </View>
+                )
+              )}
+            </ScrollView>
           </View>
-        </View>
-      </Modal>
+        </>
+      )}
     </SafeAreaView>
   );
 };
@@ -166,105 +208,102 @@ const CalendarScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#fff',
   },
   header: {
-    fontSize: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 28,
     fontWeight: 'bold',
-    textAlign: 'center',
-    margin: 16,
-    color: '#333',
+  },
+  backButton: {
+    padding: 5,
   },
   loadingContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#666',
-    fontSize: 16,
-  },
-  centeredView: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  modalView: {
-    width: '90%',
-    maxHeight: '80%',
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+  divider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 10,
   },
-  modalTitle: {
-    marginBottom: 20,
-    fontWeight: 'bold',
-    fontSize: 20,
-    color: '#333',
+  logsContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 10,
   },
-  medicationList: {
-    width: '100%',
-    maxHeight: 400,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 15,
   },
-  medicationItem: {
-    backgroundColor: '#f0f7f0',
+  scrollView: {
+    flex: 1,
+  },
+  medicationCard: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
     padding: 16,
-    borderRadius: 10,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
   },
   medicationName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
+    fontWeight: '600',
   },
-  medicationDetails: {
+  dosage: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: '#e8f4f2',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  timeContainer: {
+    marginTop: 5,
+  },
+  timeItem: {
     flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 6,
   },
-  detailLabel: {
-    width: 80,
+  timeLabel: {
     fontSize: 14,
     color: '#666',
+    marginLeft: 4,
+  },
+  timeValue: {
+    fontSize: 14,
     fontWeight: '500',
   },
-  detailValue: {
-    flex: 1,
-    fontSize: 14,
-    color: '#333',
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
   },
-  noMedicationsText: {
+  emptyStateText: {
+    marginTop: 12,
     fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
-    fontStyle: 'italic',
-  },
-  closeButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 20,
-    padding: 10,
-    paddingHorizontal: 20,
-    elevation: 2,
-    marginTop: 15,
-  },
-  closeButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: '#888',
     textAlign: 'center',
-  },
+  }
 });
 
 export default CalendarScreen;
-
-*/

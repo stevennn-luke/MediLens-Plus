@@ -44,7 +44,8 @@ export default function App() {
         <Stack.Screen name="AddMed" component={AddMedicationScreen} /> 
         <Stack.Screen name="ActualProfile" component={ActualProfile} />
         <Stack.Screen name="OCRScreen" component={OCRScreen} /> 
-        <Stack.Screen name="MediVision" component={MediVision} />  
+        <Stack.Screen name="MediVision" component={MediVision} /> 
+        <Stack.Screen name="CalendarScreen" component={CalendarScreen} />
       </Stack.Navigator>
     </NavigationContainer>
     

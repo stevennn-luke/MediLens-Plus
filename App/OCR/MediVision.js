@@ -199,6 +199,7 @@ export default function MediVision({ navigation, route }) {
   
   return (
     <SafeAreaView style={styles.container}>
+          <ScrollView style={styles.container}>
       <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -249,6 +250,7 @@ export default function MediVision({ navigation, route }) {
           </Text>
         </View>
       )}
+      </ScrollView>
     </SafeAreaView>
   );
 }

@@ -19,6 +19,7 @@ import AddMedicationScreen from './App/Screens/AddMedicationScreen';
 import ActualProfile from './App/Screens/ActualProfileScreen';
 import OCRScreen from './App/OCR/OCRScreen';
 import CalendarScreen from './App/Screens/CalendarScreen';
+import AnalyticsScreen from './App/Screens/AnalyticsScreen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import 'react-native-gesture-handler'; 
@@ -45,7 +46,8 @@ export default function App() {
         <Stack.Screen name="ActualProfile" component={ActualProfile} />
         <Stack.Screen name="OCRScreen" component={OCRScreen} /> 
         <Stack.Screen name="MediVision" component={MediVision} /> 
-        <Stack.Screen name="CalendarScreen" component={CalendarScreen} />
+        <Stack.Screen name="CalendarScreen" component={CalendarScreen} /> 
+        <Stack.Screen name="AnalyticsScreen" component={AnalyticsScreen} /> 
       </Stack.Navigator>
     </NavigationContainer>
     

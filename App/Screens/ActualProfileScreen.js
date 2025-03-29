@@ -164,6 +164,10 @@ const ActualProfile = () => {
     navigation.navigate('MedicalIDScreen');
   };
 
+  const navigateToAnalytics = () => {
+    navigation.navigate('AnalyticsScreen');
+  };
+
   const renderSettingItem = (title, onPress) => (
     <TouchableOpacity 
       style={styles.settingItem} 
@@ -176,20 +180,24 @@ const ActualProfile = () => {
 
   return (
     <ScrollView style={styles.container}>
-       <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="chevron-back" size={24} color="black" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>MediLens+</Text>
-        </View>
-
       <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={24} color="black" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>MediLens+</Text>
+      </View>
+
+      <View style={styles.profileHeader}>
         <TouchableOpacity onPress={handleImagePicker} style={styles.profileImageContainer}>
           {profileImage ? (
-            <Image source={{ uri: profileImage }} style={styles.profileImage} />
+            <Image 
+              source={{ uri: profileImage }} 
+              style={styles.profileImage} 
+              resizeMode="cover"
+            />
           ) : (
             <View style={styles.placeholderImage}>
               <Ionicons name="person" size={50} color="#999" />
@@ -207,7 +215,7 @@ const ActualProfile = () => {
 
       <Text style={styles.sectionTitle}>Features</Text>
       <View style={styles.section}>
-        {renderSettingItem('Health Checklist', () => {})}
+        {renderSettingItem('Analytics', navigateToAnalytics)}
         {renderSettingItem('Health Records', () => {})}
         {renderSettingItem('Notifications', () => {})}
         {renderSettingItem('Organ Donation', () => {})}
@@ -231,7 +239,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 50,
-    
   },
   backButton: {
     padding: 10,
@@ -245,13 +252,18 @@ const styles = StyleSheet.create({
     marginRight: 20,
     paddingTop: 20,
   },
-
+  profileHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   profileImageContainer: {
     width: 100,
     height: 100,
     borderRadius: 50,
     overflow: 'hidden',
-    marginBottom: 15,
   },
   profileImage: {
     width: '100%',
@@ -267,6 +279,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: 'bold',
+    marginLeft: 20,
   },
   sectionTitle: {
     fontSize: 20,

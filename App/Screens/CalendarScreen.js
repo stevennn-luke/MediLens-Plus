@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,10 +15,8 @@ import {
   getDocs,
   query,
   orderBy,
-  where,
-  Timestamp,
 } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { auth, db } from '../../config/firebase';
 
 const CalendarScreen = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState('');
@@ -27,7 +24,6 @@ const CalendarScreen = ({ navigation }) => {
   const [markedDates, setMarkedDates] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Load data on component mount
   useEffect(() => {
     // Automatically select today's date on load
     const today = new Date();
@@ -64,35 +60,42 @@ const CalendarScreen = ({ navigation }) => {
   const fetchMedicationLogs = async () => {
     try {
       setLoading(true);
-      const logsRef = collection(db, 'medicationLogs');
+      
+      // Check if user is authenticated
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        console.error('No authenticated user found');
+        setLoading(false);
+        return;
+      }
+
+      // Fix: Use the correct collection path
+      const logsRef = collection(db, 'users', userId, 'medicationLogs');
       const q = query(logsRef, orderBy('takenAt', 'desc'));
       const snapshot = await getDocs(q);
 
       const logs = [];
       const markedDatesObj = {};
       
-      console.log(`Found ${snapshot.size} total logs in database`);
+      console.log(`Found ${snapshot.size} total logs in database for user ${userId}`);
 
       snapshot.forEach((doc) => {
         const data = doc.data();
         let takenAt = data.takenAt;
 
-        console.log(`Raw log data:`, JSON.stringify(data));
-        console.log(`Raw takenAt:`, takenAt);
-
         // Parse Firestore timestamp correctly
         if (takenAt && takenAt.toDate) {
           takenAt = takenAt.toDate();
-          console.log(`Converted timestamp to Date:`, takenAt);
         } else if (typeof takenAt === 'string') {
           takenAt = new Date(takenAt);
-          console.log(`Converted string to Date:`, takenAt);
+        } else if (takenAt && takenAt.seconds) {
+          // Handle Firestore timestamp format
+          takenAt = new Date(takenAt.seconds * 1000);
         }
 
         if (takenAt instanceof Date && !isNaN(takenAt)) {
           // Format date for calendar marking (YYYY-MM-DD)
           const dateString = formatDateString(takenAt);
-          console.log(`Formatted dateString:`, dateString);
 
           // Add to logs array
           logs.push({
@@ -107,13 +110,12 @@ const CalendarScreen = ({ navigation }) => {
             marked: true,
             dotColor: '#50cebb',
           };
+          
+          console.log(`Log processed: ${doc.id}, Date: ${dateString}, Medication: ${data.medicationName}`);
         } else {
-          console.log(`Invalid date found:`, takenAt);
+          console.warn(`Invalid date format for log ${doc.id}:`, takenAt);
         }
       });
-
-      console.log(`Processed ${logs.length} valid logs`);
-      console.log(`Marked dates:`, JSON.stringify(markedDatesObj));
 
       // Update the selected date in markedDates
       if (selectedDate) {
@@ -126,19 +128,11 @@ const CalendarScreen = ({ navigation }) => {
 
       setMedicationLogs(logs);
       setMarkedDates(markedDatesObj);
-      
-      // Debug - show what's in the logs after setting state
-      setTimeout(() => {
-        console.log(`After state update - Selected date: ${selectedDate}`);
-        console.log(`After state update - Total logs: ${logs.length}`);
-        const filtered = logs.filter(log => log.dateString === selectedDate);
-        console.log(`After state update - Filtered logs for selected date: ${filtered.length}`);
-      }, 100);
-      
       setLoading(false);
+      
+      console.log(`Processed ${logs.length} valid logs`);
     } catch (error) {
       console.error('Error fetching medication logs:', error);
-      Alert.alert('Error', 'Failed to load medication logs: ' + error.message);
       setLoading(false);
     }
   };
@@ -169,56 +163,16 @@ const CalendarScreen = ({ navigation }) => {
     };
 
     setMarkedDates(updatedMarkedDates);
-    
-    // Debug - check matching logs
-    const filtered = medicationLogs.filter(log => log.dateString === selectedDateString);
-    console.log(`Found ${filtered.length} logs for selected date ${selectedDateString}`);
-    filtered.forEach(log => {
-      console.log(`Matching log: ${log.id}, Date: ${log.dateString}, Medication: ${log.medicationName}`);
-    });
   };
 
-  // Filter logs based on selected date with improved logging
+  // Filter logs based on selected date with improved matching
   const getFilteredMedicationLogs = () => {
-    if (!selectedDate) {
-      console.log('No selected date for filtering');
-      return [];
-    }
+    if (!selectedDate) return [];
     
-    const filtered = medicationLogs.filter(log => {
-      const matches = log.dateString === selectedDate;
-      if (matches) {
-        console.log(`Log matches: ${log.id}, ${log.medicationName}`);
-      }
-      return matches;
-    });
-    
-    console.log(`Filtered logs count: ${filtered.length} for date ${selectedDate}`);
+    const filtered = medicationLogs.filter(log => log.dateString === selectedDate);
+    console.log(`Found ${filtered.length} logs for date ${selectedDate}`);
     return filtered;
   };
-
-  // Manual debug function that can be called from a button
-  const debugLogs = () => {
-    console.log('===== DEBUG LOGS =====');
-    console.log(`Selected date: ${selectedDate}`);
-    console.log(`Total medication logs: ${medicationLogs.length}`);
-    
-    // Check all logs
-    medicationLogs.forEach(log => {
-      console.log(`Log: ${log.id}, Date: ${log.dateString}, Medication: ${log.medicationName}`);
-    });
-    
-    // Check filtered logs
-    const filtered = getFilteredMedicationLogs();
-    console.log(`Filtered logs: ${filtered.length}`);
-    
-    Alert.alert(
-      'Debug Info', 
-      `Selected date: ${selectedDate}\nTotal logs: ${medicationLogs.length}\nFiltered logs: ${filtered.length}`
-    );
-  };
-
-  const filteredLogs = getFilteredMedicationLogs();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -248,27 +202,21 @@ const CalendarScreen = ({ navigation }) => {
               textDayHeaderFontWeight: '500',
               arrowColor: '#50cebb',
             }}
+            // Fix: Use the calendar's built-in navigation
           />
 
           <View style={styles.divider} />
 
           <View style={styles.logsContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {selectedDate
-                  ? `Logs for ${formatReadableDate(selectedDate)}`
-                  : 'Select a date to view logs'}
-              </Text>
-              
-              {/* Debug button - remove in production */}
-              <TouchableOpacity style={styles.debugButton} onPress={debugLogs}>
-                <Ionicons name="bug-outline" size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.sectionTitle}>
+              {selectedDate
+                ? `Logs for ${formatReadableDate(selectedDate)}`
+                : 'Select a date to view logs'}
+            </Text>
 
             <ScrollView style={styles.scrollView}>
-              {filteredLogs.length > 0 ? (
-                filteredLogs.map((log) => (
+              {getFilteredMedicationLogs().length > 0 ? (
+                getFilteredMedicationLogs().map((log) => (
                   <View key={log.id} style={styles.medicationCard}>
                     <View style={styles.cardHeader}>
                       <Text style={styles.medicationName}>{log.medicationName}</Text>
@@ -295,9 +243,6 @@ const CalendarScreen = ({ navigation }) => {
                   <View style={styles.emptyState}>
                     <Ionicons name="calendar-outline" size={48} color="#ccc" />
                     <Text style={styles.emptyStateText}>No logs for this date</Text>
-                    <Text style={styles.debugText}>
-                      Total logs: {medicationLogs.length}, Selected date: {selectedDate}
-                    </Text>
                   </View>
                 )
               )}
@@ -343,18 +288,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-  },
-  debugButton: {
-    padding: 5,
+    marginBottom: 15,
   },
   scrollView: {
     flex: 1,
@@ -413,12 +350,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#888',
-    textAlign: 'center',
-  },
-  debugText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#aaa',
     textAlign: 'center',
   },
 });

@@ -23,6 +23,9 @@ const CalendarScreen = ({ navigation }) => {
   const [medicationLogs, setMedicationLogs] = useState([]);
   const [markedDates, setMarkedDates] = useState({});
   const [loading, setLoading] = useState(true);
+  
+  // New accent color
+  const ACCENT_COLOR = '#FFA500';
 
   useEffect(() => {
     // Automatically select today's date on load
@@ -105,10 +108,10 @@ const CalendarScreen = ({ navigation }) => {
             dateString,
           });
 
-          // Mark dates with green dots
+          // Mark dates with orange dots (changed from green)
           markedDatesObj[dateString] = {
             marked: true,
-            dotColor: '#50cebb',
+            dotColor: ACCENT_COLOR,
           };
           
           console.log(`Log processed: ${doc.id}, Date: ${dateString}, Medication: ${data.medicationName}`);
@@ -122,7 +125,7 @@ const CalendarScreen = ({ navigation }) => {
         markedDatesObj[selectedDate] = {
           ...(markedDatesObj[selectedDate] || {}),
           selected: true,
-          selectedColor: '#50cebb',
+          selectedColor: ACCENT_COLOR,
         };
       }
 
@@ -159,7 +162,7 @@ const CalendarScreen = ({ navigation }) => {
     updatedMarkedDates[selectedDateString] = {
       ...(updatedMarkedDates[selectedDateString] || {}),
       selected: true,
-      selectedColor: '#50cebb',
+      selectedColor: ACCENT_COLOR,
     };
 
     setMarkedDates(updatedMarkedDates);
@@ -187,7 +190,7 @@ const CalendarScreen = ({ navigation }) => {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#50cebb" />
+          <ActivityIndicator size="large" color={ACCENT_COLOR} />
         </View>
       ) : (
         <>
@@ -195,14 +198,43 @@ const CalendarScreen = ({ navigation }) => {
             onDayPress={handleDateSelect}
             markedDates={markedDates}
             theme={{
-              todayTextColor: '#50cebb',
-              selectedDayBackgroundColor: '#50cebb',
-              dotColor: '#50cebb',
+              todayTextColor: ACCENT_COLOR,
+              selectedDayBackgroundColor: ACCENT_COLOR,
+              dotColor: ACCENT_COLOR,
               textMonthFontWeight: 'bold',
               textDayHeaderFontWeight: '500',
-              arrowColor: '#50cebb',
+              arrowColor: ACCENT_COLOR,
             }}
-            // Fix: Use the calendar's built-in navigation
+            // Custom calendar header with specific spacing
+            renderHeader={(date) => {
+              const month = date.toString('MMMM yyyy');
+              return (
+                <View style={styles.calendarHeader}>
+                  <View style={styles.arrowsContainer}>
+                    {/* Month navigation arrows with 20px spacing between them */}
+                    <TouchableOpacity 
+                      onPress={() => {
+                        const newDate = new Date(date);
+                        newDate.setMonth(newDate.getMonth() - 1);
+                        date.setMonth(date.getMonth() - 1);
+                      }}
+                    >
+                    </TouchableOpacity>
+                    <View style={{ width: 20 }} />
+                    <TouchableOpacity 
+                      onPress={() => {
+                        const newDate = new Date(date);
+                        newDate.setMonth(newDate.getMonth() + 1);
+                        date.setMonth(date.getMonth() + 1);
+                      }}
+                    >
+                      <Ionicons name="chevron-forward" size={24} color={ACCENT_COLOR} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.calendarHeaderText}>{month}</Text>
+                </View>
+              );
+            }}
           />
 
           <View style={styles.divider} />
@@ -229,7 +261,7 @@ const CalendarScreen = ({ navigation }) => {
                         <Text style={styles.timeValue}>{log.scheduled}</Text>
                       </View>
                       <View style={styles.timeItem}>
-                        <Ionicons name="checkmark-circle-outline" size={16} color="#50cebb" />
+                        <Ionicons name="checkmark-circle-outline" size={16} color={ACCENT_COLOR} />
                         <Text style={styles.timeLabel}>Taken at: </Text>
                         <Text style={styles.timeValue}>
                           {log.takenAt instanceof Date ? formatTime(log.takenAt) : 'Invalid time'}
@@ -278,6 +310,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    width: '100%',
+  },
+  arrowsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calendarHeaderText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginRight: 20, // 20px from the right edge
+  },
   divider: {
     height: 1,
     backgroundColor: '#e0e0e0',
@@ -319,7 +368,7 @@ const styles = StyleSheet.create({
   dosage: {
     fontSize: 14,
     color: '#666',
-    backgroundColor: '#e8f4f2',
+    backgroundColor: '#fff1e6', // Updated to match the orange theme
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
